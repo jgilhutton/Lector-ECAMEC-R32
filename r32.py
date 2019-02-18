@@ -3,6 +3,7 @@ from statistics import variance
 import matplotlib.pyplot as plt
 from math import ceil
 from re import search
+from time import mktime,strptime,localtime,strftime
 
 dataSeries = {
             'Vieja':{
@@ -74,8 +75,12 @@ dataSeries = {
                             'factorFlicker':0.0,
                             'factorThd':0.0,
                             'packString':'>HHHHHHHHHHxHHHHHHHHxBBBBBBBBHHHH'},},
-            '1612':{}
-}
+            '1612':{},}
+errCodes = {84:'Descarga de datos',
+            83:'Cambio de Hora (Hora Anterior)',
+            85:'Cambio de Hora (Hora Actual)',
+            82:'Corte de Tensión',
+            81:'Vuelta de Tensión',}
 
 def feeder(data,largoRegistro,largoErr,byteSeparador):
     returnData = data[:]
@@ -114,14 +119,18 @@ class Medicion():
         self.headerCalibracion = self.calibraciones()
         [self.calibrTension,
         self.calibrTensionNo220,
-        self.calibreThd,
+        self.calibrThd,
         self.calibrResiduo,
-        self.calibreFlicker] = struct.unpack(self.serie['unpackHeaderCalibracion'],self.headerCalibracion)
+        self.calibrFlicker] = struct.unpack(self.serie['unpackHeaderCalibracion'],self.headerCalibracion)
     
     registrosProcesados = []
     errs = []
     regs = []
     raws = []
+    inicio = None
+    final = None
+    periodo = None
+    rangosCortes = []
 
     def openR32(self,fileName):
         with open(fileName,'rb') as f:
@@ -160,12 +169,48 @@ class Medicion():
                 hold = puntero
             puntero += 1
 
+    def timeStampGen(self,startTime):
+        cuartosDeHora,resto = divmod(mktime(startTime),(15*60))
+        stampSeconds = cuartosDeHora*(15*60)
+        while True:
+            stampSeconds += (15*60)
+            yield localtime(stampSeconds)
+    
+    def procesarErrs(self):
+        corteInicio = None
+        corteFin = None
+        lastTimeStamp = None
+        errDump = open(self.headerData['filename']+'.err','w')
+        errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',self.inicio),'Comienzo del Registro.','\n']))
+        for err in self.errs:
+            err = struct.unpack(self.serie['unpackErr'],err)
+            err = [str(hex(i)) for i in err]
+            err = [search('(?<=x).+',x).group().zfill(2) for x in err]
+            timeSamp = strptime(''.join(err[1:]),'%S%M%H%d%m%y')
+            if timeSamp == lastTimeStamp: continue
+            errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',timeSamp),errCodes[int(err[0])],'\n']))
+            codigo = int(err[0])
+            if codigo == 82: corteInicio = timeSamp
+            if codigo == 81:
+                corteFin = timeSamp
+                self.rangosCortes.append((mktime(corteInicio),mktime(corteFin)))
+                corteFin = None
+                corteInicio = None
+            lastTimeStamp = timeSamp
+        print(self.rangosCortes)
+
+
     def procesar(self):
         serie = self.serie
-        headerCalibracion = self.headerCalibracion
         header = struct.unpack(serie['unpackHeader'],self.header)
-        headerData = dict(zip(list(serie['headerMap'].keys()),[search('(?<=\').+(?=\')',str(header[serie['headerMap'][x]])).group() for x in serie['headerMap']]))
+        self.headerData = dict(zip(list(serie['headerMap'].keys()),[search('(?<=\').+(?=\')',str(header[serie['headerMap'][x]])).group() for x in serie['headerMap']]))
+        headerData = self.headerData
 
+        self.inicio = strptime(' '.join([headerData['diaInicio'],headerData['mesInicio'],headerData['añoInicio'],headerData['horaInicio'],headerData['minInicio']]),'%d %m %y %H %M')
+        self.final = strptime(' '.join([headerData['diaFin'],headerData['mesFin'],headerData['añoFin'],headerData['horaFin'],headerData['minFin']]),'%d %m %y %H %M')
+        self.periodo = int(self.headerData['periodo'])
+
+        self.procesarErrs()
         for reg in reversed(self.regs):
             a = struct.unpack(serie['unpackString'],reg)
             VRaw = a[serie['regIndexes']['V']]
@@ -178,13 +223,14 @@ class Medicion():
             Vmax = serie['factorTension'](VmaxRaw)
             Vmin = serie['factorTension'](VminRaw)
 
-            thd = serie['getThd'](V,thdRaw,self.calibrResiduo,self.calibrTension,VRaw,self.calibreThd)
+            thd = serie['getThd'](V,thdRaw,self.calibrResiduo,self.calibrTension,VRaw,self.calibrThd)
             if thd>10: thd = 10.0
-            flicker = serie['getFlicker'](flickerRaw,self.calibreFlicker,V)
+            flicker = serie['getFlicker'](flickerRaw,self.calibrFlicker,V)
             if flicker>2: flicker = 2.0
             
             self.registrosProcesados.append((V,Vmax,Vmin,thd,flicker))
             self.raws.append(a)
+
 
 # file = 'Serie vieja T/ori.R32'
 # fileDat = 'Serie vieja T/ori.dat'
