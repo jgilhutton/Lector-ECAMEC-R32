@@ -254,30 +254,3 @@ fileDat = 'Serie vieja M/mini.dat'
 
 medicion = Medicion(file)
 medicion.analizarR32()
-# def getDatData(col=None):
-#     global dataDat
-#     with open(fileDat,'r') as f:
-#         F = f.readlines()
-#         if col:
-#             dataDat = [y.split('\t')[col] for y in F[9:]]
-#         else:
-#             dataDat = [y.split('\t') for y in F[9:]]
-#             dataDat = [[x[2],x[3],x[4],x[5],x[6]] for x in [y for y in dataDat] if float(x[2].replace(',','.'))]
-
-
-
-
-    
-    # getDatData()
-    # # chunk = 0
-    # offset = 1
-    # for x,y,z in list(zip(dataDat,raws[offset:],registrosProcesados[offset:])):
-    #     input([x,[round(i,3) for i in z],y])#[::-1])
-
-
-# l = [[x,y] for x,y in list(zip(dataDat[:600],ps[offset:][:600]))]
-# xs = [x for x,y in l if x<0.5][chunk:200+chunk]
-# ys = [y for x,y in l if x<0.5][chunk:200+chunk]
-# # ys = [y*c for x,y in l if x>0.4]
-# plt.scatter(xs,ys,c='red',s=1)
-# plt.scatter(xs,xs,c='black',s=1)
