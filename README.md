@@ -1,5 +1,5 @@
-# Lector-ECAMEC-R32
-Este es un trabajo de ingeniería inversa a los archivos R32 que generan los registradores de variable eléctricas de la empresa ECAMEC.
+# Lector de archivos .R32 de ECAMEC
+Este es un trabajo de ingeniería inversa a los archivos R32 que generan los registradores de variables eléctricas de la empresa ECAMEC.
 
 En el laburo, tenemos que analizar toneladas de archivos R32, de equipos de 4 series distintas, que generan mal los archivos, con factores de tension y corrientes diferentes.
 
