@@ -281,4 +281,3 @@ medicion.analizarR32()
 # # ys = [y*c for x,y in l if x>0.4]
 # plt.scatter(xs,ys,c='red',s=1)
 # plt.scatter(xs,xs,c='black',s=1)
-# plt.show()
