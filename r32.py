@@ -2,19 +2,24 @@ import struct
 from statistics import variance
 import matplotlib.pyplot as plt
 from math import ceil
+from re import search
 
 dataSeries = {
             'Vieja':{
                         1:{
                             'largoRegistro':10,
                             'largoErr':7,
+                            'largoHeaderCalibracion':10,
                             'byteSeparador':255,
                             'factorTension':lambda x: x*0.07087628543376923,
-                            'factorFlicker':lambda x: x*0.00058,
+                            'getFlicker':lambda x,y,z: ((x*220*.02)/y)*(100/z),
                             'getThd':lambda u,v,w,x,y,z: (100/u)*(abs(v-((w/x)*y)))*18/z,
                             'unpackString':'>HHHHH',
                             'unpackErr':'>BBBBBBB',
-                            'regIndexes':{'thd':1,'flicker':0,'Vmin':2,'Vmax':3,'V':4},},
+                            'unpackHeaderCalibracion':'HHHHH',
+                            'unpackHeader':'>8sx2s2s2s2s2s2s3x2s2s2s2s2sxx',
+                            'headerMap':dict([reversed(x) for x in enumerate(['filename','periodo','diaInicio','mesInicio','añoInicio','horaInicio','minInicio','diaFin','mesFin','añoFin','horaFin','minFin'])]),
+                            'regIndexes':{'flicker':0,'thd':1,'Vmin':2,'Vmax':3,'V':4},},
                         3:{
                             'largoRegistro':42,
                             'largoErr':7,
@@ -24,7 +29,7 @@ dataSeries = {
                             'factorPotencia':lambda x,y: y*x,
                             # 'packString':'>HHHHHHHH HxHHHHH HxHHHHH',
                             'packString':'>HB HBH H HHH HBH H HHH HBH H HHH',
-                            'headerCalibracion':'>HHHHH'
+                            
                             # I1 v1min v1max v1 },
                             },
                     },
@@ -72,14 +77,6 @@ dataSeries = {
             '1612':{}
 }
 
-# file = 'Serie vieja T/ori.R32'
-# fileDat = 'Serie vieja T/ori.dat'
-file = 'Serie vieja M/Originales/010388O1.R32'
-fileDat = 'Serie vieja M/Originales/010388O1.dat'
-
-with open(file,'rb') as f:
-    r32 = f.read()
-
 def feeder(data,largoRegistro,largoErr,byteSeparador):
     returnData = data[:]
     puntero = len(data)-1
@@ -110,36 +107,67 @@ def feeder(data,largoRegistro,largoErr,byteSeparador):
         
         puntero -= 1
 
-def getSerie(r32):
-    return dataSeries['Vieja'][1]
+class Medicion():
+    def __init__(self,fileName):
+        self.r32 = self.openR32(fileName)
+        self.serie = self.getSerie()
+        self.headerCalibracion = self.calibraciones()
+        [self.calibrTension,
+        self.calibrTensionNo220,
+        self.calibreThd,
+        self.calibrResiduo,
+        self.calibreFlicker] = struct.unpack(self.serie['unpackHeaderCalibracion'],self.headerCalibracion)
+    
+    registrosProcesados = []
+    errs = []
+    regs = []
+    raws = []
 
-def getDatData(col=None):
-    global dataDat
-    with open(fileDat,'r') as f:
-        F = f.readlines()
-        if col:
-            dataDat = [y.split('\t')[col] for y in F[9:]]
-        else:
-            dataDat = [y.split('\t') for y in F[9:]]
-            dataDat = [[x[2],x[3],x[4],x[5]] for x in [y for y in dataDat] if float(x[2].replace(',','.'))]
+    def openR32(self,fileName):
+        with open(fileName,'rb') as f:
+            return f.read()
 
-serie = getSerie(r32)
+    def getSerie(self):
+        return dataSeries['Vieja'][1]
 
-raws = []
-regs = []
-ignoreRegs = False
-for tipo,data in feeder(r32,serie['largoRegistro'],serie['largoErr'],serie['byteSeparador']):
-    # if tipo == 'header':
-    #     header= struct.unpack(serie['packHeader'],data)
-    #     headerData = dict(zip(list(serie['headerMap'].keys()),[header[serie['headerMap'][x]] for x in serie['headerMap']]))
-    if tipo == 'err':
-        err = struct.unpack(serie['unpackErr'],data)
-        err = [int(str(hex(i)).split('x')[1]) for i in err]
-        if err[0] == 82: ignoreRegs = True
-        elif err[0] == 81 and ignoreRegs: ignoreRegs = False
-    if tipo == 'reg' and not ignoreRegs:
-        try:
-            a = struct.unpack(serie['unpackString'],data)
+    def analizarR32(self):
+        serie = self.serie
+        for tipo,data in feeder(self.r32,serie['largoRegistro'],serie['largoErr'],serie['byteSeparador']):
+            if tipo == 'header':
+                self.header = data
+                self.procesar()
+                self.errs,self.regs = [],[]
+            if tipo == 'err':
+                self.errs.append(data)
+            if tipo == 'reg':
+                self.regs.append(data)
+
+    def calibraciones(self):
+        puntero = 0
+        hold = 0
+        OPEN = False
+        for byte in self.r32:
+            size = puntero-hold
+            if OPEN and byte == self.serie['byteSeparador']:
+                OPEN = False
+                hold = puntero
+                pass
+            elif not OPEN and byte != self.serie['byteSeparador']:
+                if size == self.serie['largoHeaderCalibracion'] and  self.r32[puntero+1] == self.serie['byteSeparador']:
+                    return  self.r32[hold+1:puntero+1]
+            elif not OPEN and byte == self.serie['byteSeparador']:
+                OPEN = True
+                hold = puntero
+            puntero += 1
+
+    def procesar(self):
+        serie = self.serie
+        headerCalibracion = self.headerCalibracion
+        header = struct.unpack(serie['unpackHeader'],self.header)
+        headerData = dict(zip(list(serie['headerMap'].keys()),[search('(?<=\').+(?=\')',str(header[serie['headerMap'][x]])).group() for x in serie['headerMap']]))
+
+        for reg in reversed(self.regs):
+            a = struct.unpack(serie['unpackString'],reg)
             VRaw = a[serie['regIndexes']['V']]
             VmaxRaw = a[serie['regIndexes']['Vmax']]
             VminRaw = a[serie['regIndexes']['Vmin']]
@@ -150,25 +178,42 @@ for tipo,data in feeder(r32,serie['largoRegistro'],serie['largoErr'],serie['byte
             Vmax = serie['factorTension'](VmaxRaw)
             Vmin = serie['factorTension'](VminRaw)
 
-            calibrTension = struct.unpack('>H',b'\x0c\x20')[0]
-            calibrResiduo = struct.unpack('>H',b'\x00\xc8')[0]
-            calibreThd = struct.unpack('>H',b'\x06\x65')[0]
-            thd = serie['getThd'](V,thdRaw,calibrResiduo,calibrTension,VRaw,calibreThd)
+            thd = serie['getThd'](V,thdRaw,self.calibrResiduo,self.calibrTension,VRaw,self.calibreThd)
             if thd>10: thd = 10.0
-            # print(calibreThd,calibrResiduo,calibrTension,v6,v7,thd)
+            flicker = serie['getFlicker'](flickerRaw,self.calibreFlicker,V)
+            if flicker>2: flicker = 2.0
+            
+            self.registrosProcesados.append((V,Vmax,Vmin,thd,flicker))
+            self.raws.append(a)
 
-            # print(byte)
-            regs.append((V,Vmax,Vmin,thd))
-            raws.append(data)
-        except Exception as e:
-            print(e)
+# file = 'Serie vieja T/ori.R32'
+# fileDat = 'Serie vieja T/ori.dat'
+file = 'Serie vieja M/mini.R32'
+fileDat = 'Serie vieja M/mini.dat'
 
-getDatData()
-# chunk = 0
-offset = 0
-for x,y,z in list(zip(dataDat,raws[offset:],regs[offset:])):
-    input([x,[round(i,2) for i in z],y])#[::-1])
+medicion = Medicion(file)
+medicion.analizarR32()
+# def getDatData(col=None):
+#     global dataDat
+#     with open(fileDat,'r') as f:
+#         F = f.readlines()
+#         if col:
+#             dataDat = [y.split('\t')[col] for y in F[9:]]
+#         else:
+#             dataDat = [y.split('\t') for y in F[9:]]
+#             dataDat = [[x[2],x[3],x[4],x[5],x[6]] for x in [y for y in dataDat] if float(x[2].replace(',','.'))]
+
+
+
+
     
+    # getDatData()
+    # # chunk = 0
+    # offset = 1
+    # for x,y,z in list(zip(dataDat,raws[offset:],registrosProcesados[offset:])):
+    #     input([x,[round(i,3) for i in z],y])#[::-1])
+
+
 # l = [[x,y] for x,y in list(zip(dataDat[:600],ps[offset:][:600]))]
 # xs = [x for x,y in l if x<0.5][chunk:200+chunk]
 # ys = [y for x,y in l if x<0.5][chunk:200+chunk]
