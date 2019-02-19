@@ -9,9 +9,11 @@ dataSeries = {
             'Vieja':{
                         1:{
                             'largoRegistro':10,
+                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\tND\tPeriodo: {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\tFactor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\n\n',
                             'largoErr':7,
                             'largoHeaderCalibracion':10,
                             'byteSeparador':255,
+                            'cantidadDeVariables':5,
                             'factorTension':lambda x: x*0.07087628543376923,
                             'getFlicker':lambda x,y,z: ((x*220*.02)/y)*(100/z),
                             'getThd':lambda u,v,w,x,y,z: (100/u)*(abs(v-((w/x)*y)))*18/z,
@@ -112,23 +114,22 @@ def feeder(data,largoRegistro,largoErr,byteSeparador):
         
         puntero -= 1
 
-def inRange(listaValores,*arg):
+def inRange(valor,*arg):
     flag = False
     for range in arg:
-        for numero in listaValores:
-            if numero > range[0] and numero < range[1]:
-                flag = True
-            else:
-                flag = False
-                break
-                
+        if valor > range[0] and valor < range[1]:
+            flag = True
+        else:
+            flag = False
+            break             
         if not flag: return False
-        else: continue
     if flag: return True
 
 class Medicion():
-    def __init__(self,fileName):
+    def __init__(self,fileName,TV,TI):
         self.r32 = self.openR32(fileName)
+        self.TV = TV
+        self.TI = TI
         self.serie = self.getSerie()
         self.headerCalibracion = self.calibraciones()
         [self.calibrTension,
@@ -138,13 +139,16 @@ class Medicion():
         self.calibrFlicker] = struct.unpack(self.serie['unpackHeaderCalibracion'],self.headerCalibracion)
     
     registrosProcesados = []
+    errsProcesados = []
     chunks = []
     raws = []
+    es1612 = False
     inicio = None
     final = None
     periodo = None
-    rangosCortes = []
-
+    uTimePeriodo = 'min'
+    horaCambiada = False
+    
     def openR32(self,fileName):
         with open(fileName,'rb') as f:
             return f.read()
@@ -154,7 +158,12 @@ class Medicion():
 
     def analizarR32(self):
         serie = self.serie
-        for index,[tipo,data] in enumerate(feeder(self.r32,serie['largoRegistro'],serie['largoErr'],serie['byteSeparador'])):
+        timeInicioCorte = None
+        timeFinCorte = None
+        timeInicioReg = None
+        timeFinReg = None
+
+        for tipo,data in feeder(self.r32,serie['largoRegistro'],serie['largoErr'],serie['byteSeparador']):
             if tipo == 'header':
                 self.header = data
                 header = struct.unpack(serie['unpackHeader'],self.header)
@@ -165,16 +174,45 @@ class Medicion():
                 self.final = strptime(' '.join([headerData['diaFin'],headerData['mesFin'],headerData['añoFin'],headerData['horaFin'],headerData['minFin']]),'%d %m %y %H %M')
                 self.periodo = int(self.headerData['periodo'])
 
-                tStamp = self.timeStampGen(self.inicio)
-                endTime = tStamp.send(None)
+                self.stampGen = self.timeStampGen(self.inicio)
 
-                for index,chunk in enumerate(reversed(self.chunks)):
+                for chunk in self.chunks:
                     if chunk['tipo'] == 'err':
-                        self.procesarErr(err)
+                        isCorte,errTimeStamp = self.procesarErr(chunk['data'])
+                        if all([not isCorte,not errTimeStamp]): continue
+                        elif isCorte == None:
+                            timeInicioReg = self.inicio
+                            self.stampGen.close()
+                            self.stampGen = self.timeStampGen(self.inicio)
+                            continue
+                        elif isCorte: timeInicioCorte = errTimeStamp
+                        elif not isCorte: timeFinCorte = errTimeStamp
+                    elif chunk['tipo'] == 'reg':
+                        timeFinReg = self.stampGen.send(None)
+                        timeInicioReg = self.inicio if not timeInicioReg else timeFinReg
+                        enPeriodo = inRange(timeInicioCorte,(timeInicioReg,timeFinReg))
+                        if enPeriodo:
+                            regProcesado,regRaw = self.procesarReg(chunk['data'])
+                            self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
+                        elif isCorte:
+                            regProcesado,regRaw = self.procesarReg(None,padding=True)
+                            self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
+                        elif not isCorte:
+                            regProcesado,regRaw = self.procesarReg(chunk['data'])
+                            self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':False})
+                self.genDat()
+                self.genErr()
+                self.reset()
 
-                self.chunks = []
             elif tipo in ['err','reg']:
-                self.chunks.append({'tipo':tipo,'data',data})
+                self.chunks.append({'tipo':tipo,'data':data})
+
+    def reset(self):
+        self.chunks = []
+        self.registrosProcesados = []
+        self.errsProcesados = []
+        self.stampGen.close()
+        self.horaCambiada = False
 
     def calibraciones(self):
         puntero = 0
@@ -195,57 +233,95 @@ class Medicion():
             puntero += 1
 
     def timeStampGen(self,startTime):
-        cuartosDeHora,resto = divmod(mktime(startTime),(15*60))
-        stampSeconds = cuartosDeHora*(15*60)
+        cuartosDeHora,resto = divmod(mktime(startTime),(self.periodo*60))
+        stampSeconds = cuartosDeHora*(self.periodo*60)
         while True:
-            stampSeconds += (15*60)
+            stampSeconds += (self.periodo*60)
             yield localtime(stampSeconds)
     
-    def procesarErr(self,err):
-        corteInicio = None
-        corteFin = None
-        lastTimeStamp = None
-        errDump = open(self.headerData['filename']+'.err','w')
-        errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',self.inicio),'Comienzo del Registro.','\n']))
+    def genHeader(self):
+        return self.serie['headerDat'].format(
+            filename=self.headerData['filename'],
+            periodo=self.periodo,
+            Utiempo=self.uTimePeriodo,
+            tension='220',
+            TV=self.TV,TI=self.TI,
+            corriente='35',
+            inicio=strftime('%d/%m/%Y',self.inicio),
+            final=strftime('%d/%m/%Y',self.final),
+            horaInicio=strftime('%H:%M',self.inicio),
+            horaFinal=strftime('%H:%M',self.final))
 
+    def genDat(self):
+        headerData = self.headerData
+        datDump =  open(headerData['filename']+'.dat','w',encoding='utf-8')
+        datDump.write(self.genHeader())
+        for i in self.registrosProcesados:
+            datos = '\t'.join([str(x) for x in i['regProcesado']])
+            time = strftime('%d/%m/%y\t%H:%M:%S',i['timeFinReg'])
+            anomalia = 'A' if i['Anomalia'] else ''
+            datDump.write('\t'.join([time,datos,anomalia,'\n']))
+
+    def genErr(self):
+        headerData = self.headerData
+        errDump = open(headerData['filename']+'.err','w',encoding='utf-8')
+        inicio = strptime(' '.join([headerData['diaInicio'],headerData['mesInicio'],headerData['añoInicio'],headerData['horaInicio'],headerData['minInicio']]),'%d %m %y %H %M')
+        errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',inicio),'Comienzo del Registro.','\n']))
+        for timeStamp,codigo in self.errsProcesados:
+            if self.es1612: continue
+            else: errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',timeStamp),errCodes[codigo],'\n']))
+        
+    def procesarErr(self,err):
+        timeInicioCorte = None
+        timeFinCorte = None
+       
         err = struct.unpack(self.serie['unpackErr'],err)
         err = [str(hex(i)) for i in err]
         err = [search('(?<=x).+',x).group().zfill(2) for x in err]
-        
-        timeSamp = strptime(''.join(err[1:]),'%S%M%H%d%m%y')
-        if timeSamp == lastTimeStamp: continue
-        errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',timeSamp),errCodes[int(err[0])],'\n']))
+
+        timeStamp = strptime(''.join(err[1:]),'%S%M%H%d%m%y')
         codigo = int(err[0])
-        if codigo == 82: corteInicio = timeSamp
-        if codigo == 81:
-            corteFin = timeSamp
-            self.rangosCortes.append((mktime(corteInicio),mktime(corteFin)))
-            corteFin = None
-            corteInicio = None
-        lastTimeStamp = timeSamp
+        self.errsProcesados.append((timeStamp,codigo))
+        
+        if codigo == 85 and not self.horaCambiada:
+            self.horaCambiada = True
+            return None,None
+        elif codigo == 84: return 'DD',timeStamp 
+        elif codigo == 83: return None,None
+        elif codigo == 85 and self.horaCambiada:
+            self.inicio = timeStamp
+            return None,True
+        elif codigo == 82:
+            timeInicioCorte = timeStamp
+            return True,timeInicioCorte
+        elif codigo == 81:
+            corteFin = timeStamp
+            return False,timeFinCorte
 
-    def procesarReg(self,reg):
-        data = struct.unpack(serie['unpackString'],reg)
-        VRaw = data[serie['regIndexes']['V']]
-        VmaxRaw = data[serie['regIndexes']['Vmax']]
-        VminRaw = data[serie['regIndexes']['Vmin']]
-        thdRaw = data[serie['regIndexes']['thd']]
-        flickerRaw = data[serie['regIndexes']['flicker']]
+    def procesarReg(self,reg,padding=False):
+        if padding:
+            return [0.0 for _ in range(self.serie['cantidadDeVariables'])],None
+        data = struct.unpack(self.serie['unpackString'],reg)
+        VRaw = data[self.serie['regIndexes']['V']]
+        VmaxRaw = data[self.serie['regIndexes']['Vmax']]
+        VminRaw = data[self.serie['regIndexes']['Vmin']]
+        thdRaw = data[self.serie['regIndexes']['thd']]
+        flickerRaw = data[self.serie['regIndexes']['flicker']]
 
-        V = serie['factorTension'](VRaw)
-        Vmax = serie['factorTension'](VmaxRaw)
-        Vmin = serie['factorTension'](VminRaw)
-        thd = serie['getThd'](V,thdRaw,self.calibrResiduo,self.calibrTension,VRaw,self.calibrThd)
+        V = self.serie['factorTension'](VRaw)
+        Vmax = self.serie['factorTension'](VmaxRaw)
+        Vmin = self.serie['factorTension'](VminRaw)
+        thd = self.serie['getThd'](V,thdRaw,self.calibrResiduo,self.calibrTension,VRaw,self.calibrThd)
         if thd>10: thd = 10.0
-        flicker = serie['getFlicker'](flickerRaw,self.calibrFlicker,V)
+        flicker = self.serie['getFlicker'](flickerRaw,self.calibrFlicker,V)
         if flicker>2: flicker = 2.0
         
-        return (endTime,V,Vmax,Vmin,thd,flicker),data
+        return (V,Vmax,Vmin,thd,flicker),data
 
 # file = 'Serie vieja T/ori.R32'
 # fileDat = 'Serie vieja T/ori.dat'
-file = 'Serie vieja M/mini.R32'
-fileDat = 'Serie vieja M/mini.dat'
+file = 'Serie vieja M/Originales/010388O1.R32'
+fileDat = 'Serie vieja M/Originales/010388O1.dat'
 
-medicion = Medicion(file)
+medicion = Medicion(file,1,1)
 medicion.analizarR32()
