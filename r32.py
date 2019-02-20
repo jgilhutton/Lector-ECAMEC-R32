@@ -4,7 +4,7 @@ from statistics import variance
 import matplotlib.pyplot as plt
 from math import ceil
 from re import search
-from time import mktime,strptime,localtime,strftime
+from time import asctime,mktime,strptime,localtime,strftime
 
 dataSeries = {
             'Vieja':{
@@ -116,6 +116,7 @@ def feeder(data,largoRegistro,largoErr,byteSeparador):
         puntero -= 1
 
 def inRange(valor,*arg):
+    if not valor: return False
     flag = False
     for range in arg:
         if valor > range[0] and valor < range[1]:
@@ -163,9 +164,31 @@ class Medicion():
         timeFinCorte = None
         timeInicioReg = None
         timeFinReg = None
+        flagAnomalia = False
+
+        def pad(timeInicioReg,lastTime,timeInicioCorte,timeFinCorte):
+            while True:
+                timeFinReg = self.stampGen.send(None)
+                timeInicioReg = self.inicio if not timeInicioReg else lastTime
+                lastTime = timeFinReg
+                enPeriodo = inRange(timeFinCorte,(timeInicioReg,timeFinReg))
+                if not enPeriodo:
+                    regProcesado,regRaw = self.procesarReg(None,padding=True)
+                    self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
+                else:
+                    return timeFinReg
+        
+        def reset():
+            self.chunks = []
+            self.registrosProcesados = []
+            self.errsProcesados = []
+            self.stampGen.close()
+            self.horaCambiada = False
 
         for tipo,data in feeder(self.r32,serie['largoRegistro'],serie['largoErr'],serie['byteSeparador']):
-            if tipo == 'header':
+            if tipo in ['err','reg']:
+                self.chunks.append({'tipo':tipo,'data':data})
+            elif tipo == 'header':
                 self.header = data
                 header = struct.unpack(serie['unpackHeader'],self.header)
                 self.headerData = dict(zip(list(serie['headerMap'].keys()),[search('(?<=\').+(?=\')',str(header[serie['headerMap'][x]])).group() for x in serie['headerMap']]))
@@ -177,20 +200,32 @@ class Medicion():
 
                 self.stampGen = self.timeStampGen(self.inicio)
 
+                lastTime = self.inicio
                 for chunk in self.chunks:
                     if chunk['tipo'] == 'err':
                         isCorte,errTimeStamp = self.procesarErr(chunk['data'])
                         if all([not isCorte,not errTimeStamp]): continue
                         elif isCorte == None:
+                            if errTimeStamp == True: lastTime = self.inicio
                             timeInicioReg = self.inicio
                             self.stampGen.close()
                             self.stampGen = self.timeStampGen(self.inicio)
                             continue
                         elif isCorte: timeInicioCorte = errTimeStamp
-                        elif not isCorte: timeFinCorte = errTimeStamp
+                        elif not isCorte:
+                            timeFinCorte = errTimeStamp
+                            if inRange(timeFinCorte,(timeInicioReg,timeFinReg)):
+                                flagAnomalia = True
+                            else:
+                                timeFinReg = pad(timeInicioReg,lastTime,timeInicioCorte,timeFinCorte)
+                                flagAnomalia = True
+
                     elif chunk['tipo'] == 'reg':
-                        timeFinReg = self.stampGen.send(None)
-                        timeInicioReg = self.inicio if not timeInicioReg else timeFinReg
+                        if flagAnomalia: flagAnomalia = False
+                        else: timeFinReg = self.stampGen.send(None)
+                         
+                        timeInicioReg = self.inicio if not timeInicioReg else lastTime
+                        lastTime = timeFinReg
                         enPeriodo = inRange(timeInicioCorte,(timeInicioReg,timeFinReg))
                         if enPeriodo:
                             regProcesado,regRaw = self.procesarReg(chunk['data'])
@@ -201,19 +236,10 @@ class Medicion():
                         elif not isCorte:
                             regProcesado,regRaw = self.procesarReg(chunk['data'])
                             self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':False})
+                        else: print('MMMMMMMMMMMMMM')
                 self.genDat()
                 self.genErr()
-                self.reset()
-
-            elif tipo in ['err','reg']:
-                self.chunks.append({'tipo':tipo,'data':data})
-
-    def reset(self):
-        self.chunks = []
-        self.registrosProcesados = []
-        self.errsProcesados = []
-        self.stampGen.close()
-        self.horaCambiada = False
+                reset()
 
     def calibraciones(self):
         puntero = 0
@@ -296,7 +322,7 @@ class Medicion():
             timeInicioCorte = timeStamp
             return True,timeInicioCorte
         elif codigo == 81:
-            corteFin = timeStamp
+            timeFinCorte = timeStamp
             return False,timeFinCorte
 
     def procesarReg(self,reg,padding=False):
@@ -325,4 +351,9 @@ file = 'Serie vieja M/Originales/010388O1.R32'
 fileDat = 'Serie vieja M/Originales/010388O1.dat'
 
 medicion = Medicion(file,1,1)
-medicion.analizarR32()
+try:
+    medicion.analizarR32()
+except KeyboardInterrupt:
+    for i in medicion.registrosProcesados:
+        print(i)
+    exit()
