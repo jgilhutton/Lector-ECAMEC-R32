@@ -119,16 +119,10 @@ def feeder(data,largoRegistro,largoErr,byteSeparador):
 
 def inRange(valor,*arg):
     if not valor or not all([all(x) for x in arg]): return False
-    flag = False
     for rango in arg:
-        if valor > rango[0] and valor < rango[1]:
-            flag = True
-        else:
-            flag = False
-            break             
-        if not flag: return False
-    if flag: return True
-    else: return False
+        if not(rango[0] <= valor <= rango[1]):
+            return False
+    return True
 
 class Medicion():
     def __init__(self,fileName,TV,TI):
@@ -175,9 +169,8 @@ class Medicion():
                 timeFinReg = self.stampGen.send(None)
                 timeInicioReg = self.inicio if not timeInicioReg else lastTime
                 lastTime = timeFinReg
-                enPeriodo = inRange(timeFinCorte,(timeInicioReg,timeFinReg))
-                if not enPeriodo:
-                    regProcesado,regRaw = self.procesarReg(None,padding=True)
+                if not inRange(timeFinCorte,(timeInicioReg,timeFinReg)):
+                    regProcesado,_ = self.procesarReg(None,padding=True)
                     self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
                 else:
                     return timeInicioReg,timeFinReg
