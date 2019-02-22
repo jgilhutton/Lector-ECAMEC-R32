@@ -9,14 +9,14 @@ from time import asctime,mktime,strptime,localtime,strftime
 dataSeries = {
             'Vieja':{
                         1:{
-                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\tND\tPeriodo: {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\tFactor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\n\n',
+                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\tND\tPeriodo: {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\tFactor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\n\nFecha	Hora\tU\tU Max\tU Min\tTHD1\tFlicker\tAnormalidad\n\t\tV\tV\tV\t%\t%\t\n',
                             'largoRegistro':10,
                             'largoErr':7,
                             'largoHeaderCalibracion':10,
                             'byteSeparador':255,
-                            'cantidadDeVariables':5,
                             'variables':['V','Vmax','Vmin','thd','flicker'],
-                            'formatoReg':'{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}'
+                            'formatoReg':'%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%s\n',
+                            'formatoErr':'%s\t%s\n',
                             'getTension':lambda x: x*0.07087628543376923,
                             'getFlicker':lambda x,y,z: ((x*220*.02)/y)*(100/z),
                             'getThd':lambda u,v,w,x,y,z: (100/u)*(abs(v-((w/x)*y)))*18/z,
@@ -118,16 +118,17 @@ def feeder(data,largoRegistro,largoErr,byteSeparador):
         puntero -= 1
 
 def inRange(valor,*arg):
-    if not valor: return False
+    if not valor or not all([all(x) for x in arg]): return False
     flag = False
-    for range in arg:
-        if valor > range[0] and valor < range[1]:
+    for rango in arg:
+        if valor > rango[0] and valor < rango[1]:
             flag = True
         else:
             flag = False
             break             
         if not flag: return False
     if flag: return True
+    else: return False
 
 class Medicion():
     def __init__(self,fileName,TV,TI):
@@ -166,8 +167,8 @@ class Medicion():
         timeFinCorte = None
         timeInicioReg = None
         timeFinReg = None
-        skip = False
-        flagAnomalia = False
+        ERR = False
+        padded = True
 
         def pad(timeInicioReg,lastTime,timeInicioCorte,timeFinCorte):
             while True:
@@ -175,9 +176,6 @@ class Medicion():
                 timeInicioReg = self.inicio if not timeInicioReg else lastTime
                 lastTime = timeFinReg
                 enPeriodo = inRange(timeFinCorte,(timeInicioReg,timeFinReg))
-                try:
-                    input([asctime(timeInicioCorte),asctime(timeFinCorte),asctime(timeInicioReg),asctime(timeFinReg)])
-                except Exception as e: print(e)
                 if not enPeriodo:
                     regProcesado,regRaw = self.procesarReg(None,padding=True)
                     self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
@@ -209,46 +207,44 @@ class Medicion():
                 lastTime = self.inicio
                 for chunk in self.chunks:
                     if chunk['tipo'] == 'err':
-                        isCorte,errTimeStamp = self.procesarErr(chunk['data'])
-                        if all([not isCorte,not errTimeStamp]): continue
-                        elif isCorte == None:
-                            if errTimeStamp == True: lastTime = self.inicio
+                        dataErr = self.procesarErr(chunk['data'])
+                        if dataErr['codigo'] in [84,83]: continue
+                        elif dataErr['codigo'] == 85: # Cambio de hora
+                            self.inicio = dataErr['timeStamp']
                             timeInicioReg = self.inicio
+                            timeFinReg = timeInicioReg
                             self.stampGen.close()
                             self.stampGen = self.timeStampGen(self.inicio)
-                            continue
-                        elif isCorte:
-                            timeInicioCorte = errTimeStamp
-                            timeFinCorte = timeInicioCorte
-                        elif not isCorte:
-                            timeFinCorte = errTimeStamp
-                            if not inRange(timeFinCorte,(timeInicioReg,timeFinReg)):
-                                pad(timeInicioReg,lastTime,timeInicioCorte,timeFinCorte)
-                                skip = True
+                        elif dataErr['isCorte']:
+                            ERR = True
+                            timeInicioCorte = dataErr['timeStamp']
+                            timeFinCorte = timeInicioCorte #Esto es para darle un valor nada más
+                        elif not dataErr['isCorte']:
+                            ERR = False
+                            timeFinCorte = dataErr['timeStamp']
+                            try:
+                                enRango = inRange(mktime(timeFinCorte),(mktime(timeInicioReg),mktime(timeFinReg)))
+                                if not enRango:
+                                    timeInicioReg,timeFinReg = pad(timeInicioReg,lastTime,timeInicioCorte,timeFinCorte)
+                                    lastTime = timeInicioReg
+                                    padded = True
+                                else:
+                                    pass
+                            except Exception as e:
+                                print(e)
+                                continue
     
-                    elif chunk['tipo'] == 'reg':
-                        if skip:
-                            skip =False
-                            continue
-                        if flagAnomalia: flagAnomalia = False
-                        else: 
-                            timeFinReg = self.stampGen.send(None)
-
+                    elif chunk['tipo'] == 'reg' and chunk['data'] != self.headerCalibracion and not ERR:
+                        if not padded: timeFinReg = self.stampGen.send(None)
+                        padded = False
                         timeInicioReg = self.inicio if not timeInicioReg else lastTime
                         lastTime = timeFinReg 
-                        enPeriodo = inRange(timeInicioCorte,(timeInicioReg,timeFinReg))
-                        if not enPeriodo:
-                            enPeriodo = inRange(timeInicioCorte,(timeInicioReg,timeFinReg))
-                        try:
-                            print([asctime(timeInicioCorte),asctime(timeFinCorte),asctime(timeInicioReg),asctime(timeFinReg)])
-                        except Exception as e: print(e)
+                        enPeriodo = inRange(timeInicioCorte,(timeInicioReg,timeFinReg))|inRange(timeFinCorte,(timeInicioReg,timeFinReg))
+
                         if enPeriodo:
                             regProcesado,regRaw = self.procesarReg(chunk['data'])
                             self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
-                        elif isCorte:
-                            regProcesado,regRaw = self.procesarReg(None,padding=True)
-                            self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
-                        elif not isCorte:
+                        elif not dataErr['isCorte']:
                             regProcesado,regRaw = self.procesarReg(chunk['data'])
                             self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':False})
 
@@ -299,10 +295,8 @@ class Medicion():
         datDump =  open(headerData['filename']+'.dat','w',encoding='utf-8')
         datDump.write(self.genHeader())
         for i in self.registrosProcesados:
-            datos = '\t'.join([str(x) for x in i['regProcesado']])
-            time = strftime('%d/%m/%y\t%H:%M:%S',i['timeFinReg'])
-            anomalia = 'A' if i['Anomalia'] else ''
-            datDump.write('\t'.join([time,datos,anomalia,'\n']))
+            lista = (strftime('%d/%m/%y\t%H:%M',i['timeFinReg']),)+tuple(i['regProcesado'])+('A' if i['Anomalia'] else '',)
+            datDump.write(self.serie['formatoReg']%lista)
 
     def genErr(self):
         headerData = self.headerData
@@ -310,13 +304,11 @@ class Medicion():
         inicio = strptime(' '.join([headerData['diaInicio'],headerData['mesInicio'],headerData['añoInicio'],headerData['horaInicio'],headerData['minInicio']]),'%d %m %y %H %M')
         errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',inicio),'Comienzo del Registro.','\n']))
         for timeStamp,codigo in self.errsProcesados:
+            lista = (strftime('%d/%m/%y\t%H:%M:%S',timeStamp),errCodes[codigo])
             if self.es1612: continue
-            else: errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',timeStamp),errCodes[codigo],'\n']))
+            else: errDump.write(self.serie['formatoErr']%lista)
         
     def procesarErr(self,err):
-        timeInicioCorte = None
-        timeFinCorte = None
-       
         err = struct.unpack(self.serie['unpackErr'],err)
         err = [str(hex(i)) for i in err]
         err = [search('(?<=x).+',x).group().zfill(2) for x in err]
@@ -324,39 +316,31 @@ class Medicion():
         timeStamp = strptime(''.join(err[1:]),'%S%M%H%d%m%y')
         codigo = int(err[0])
         self.errsProcesados.append((timeStamp,codigo))
-        print('err:',codigo,asctime(timeStamp))
+
         if codigo == 85 and not self.horaCambiada:
             self.horaCambiada = True
-            return None,None
-        elif codigo == 84: return 'DD',timeStamp 
-        elif codigo == 83: return None,None
+            return {'codigo':codigo,'isCorte':False,'timeStamp':timeStamp}
+        elif codigo == 84: return {'codigo':codigo,'isCorte':False,'timeStamp':timeStamp} 
+        elif codigo == 83: return {'codigo':codigo,'isCorte':False,'timeStamp':timeStamp}
         elif codigo == 85 and self.horaCambiada:
-            self.inicio = timeStamp
-            return None,True
+            return {'codigo':codigo,'isCorte':False,'timeStamp':timeStamp}
         elif codigo == 82:
-            timeInicioCorte = timeStamp
-            return True,timeInicioCorte
+            return {'codigo':codigo,'isCorte':True,'timeStamp':timeStamp}
         elif codigo == 81:
-            timeFinCorte = timeStamp
-            return False,timeFinCorte
+            return {'codigo':codigo,'isCorte':False,'timeStamp':timeStamp}
+        else:print('err no reconocido',codigo,timeStamp)
 
     def procesarReg(self,reg,padding=False):
         if padding:
-            return [0.0 for _ in range(self.serie['cantidadDeVariables'])],None
+            return [0.0 for _ in range(len(self.serie['variables']))],None
         data = struct.unpack(self.serie['unpackString'],reg)
-        dataRaw = dict(zip(self.serie['regIndexes'],[data[x] for x in self.serie['regIndexes']-values()]))
-        # VRaw = data[self.serie['regIndexes']['V']]
-        # VmaxRaw = data[self.serie['regIndexes']['Vmax']]
-        # VminRaw = data[self.serie['regIndexes']['Vmin']]
-        # thdRaw = data[self.serie['regIndexes']['thd']]
-        # flickerRaw = data[self.serie['regIndexes']['flicker']]
-        dataProcesada = 
-        V = self.serie['factorTension'](VRaw)
-        Vmax = self.serie['factorTension'](VmaxRaw)
-        Vmin = self.serie['factorTension'](VminRaw)
-        thd = self.serie['getThd'](V,thdRaw,self.calibrResiduo,self.calibrTension,VRaw,self.calibrThd)
+        dataRaw = dict(zip(self.serie['regIndexes'],[data[x] for x in self.serie['regIndexes'].values()]))
+        V = self.serie['getTension'](dataRaw['V'])
+        Vmax = self.serie['getTension'](dataRaw['Vmax'])
+        Vmin = self.serie['getTension'](dataRaw['Vmin'])
+        thd = self.serie['getThd'](V,dataRaw['thd'],self.calibrResiduo,self.calibrTension,dataRaw['V'],self.calibrThd)
         if thd>10: thd = 10.0
-        flicker = self.serie['getFlicker'](flickerRaw,self.calibrFlicker,V)
+        flicker = self.serie['getFlicker'](dataRaw['flicker'],self.calibrFlicker,V)
         if flicker>2: flicker = 2.0
         
         return (V,Vmax,Vmin,thd,flicker),data
