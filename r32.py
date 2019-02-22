@@ -1,8 +1,4 @@
-#commit prueba
 import struct
-from statistics import variance
-import matplotlib.pyplot as plt
-from math import ceil
 from re import search
 from time import asctime,mktime,strptime,localtime,strftime
 
@@ -119,10 +115,7 @@ def feeder(data,largoRegistro,largoErr,byteSeparador):
 
 def inRange(valor,*arg):
     if not valor or not all([all(x) for x in arg]): return False
-    for rango in arg:
-        if not(rango[0] <= valor <= rango[1]):
-            return False
-    return True
+    return all([rango[0] <= valor <= rango[1] for rango in arg])
 
 class Medicion():
     def __init__(self,fileName,TV,TI):
@@ -140,13 +133,11 @@ class Medicion():
     registrosProcesados = []
     errsProcesados = []
     chunks = []
-    raws = []
     es1612 = False
     inicio = None
     final = None
     periodo = None
     uTimePeriodo = 'min'
-    horaCambiada = False
     
     def openR32(self,fileName):
         with open(fileName,'rb') as f:
@@ -180,14 +171,12 @@ class Medicion():
             self.registrosProcesados = []
             self.errsProcesados = []
             self.stampGen.close()
-            self.horaCambiada = False
 
         for tipo,data in feeder(self.r32,serie['largoRegistro'],serie['largoErr'],serie['byteSeparador']):
             if tipo in ['err','reg']:
                 self.chunks.append({'tipo':tipo,'data':data})
             elif tipo == 'header':
-                self.header = data
-                header = struct.unpack(serie['unpackHeader'],self.header)
+                header = struct.unpack(serie['unpackHeader'],data)
                 self.headerData = dict(zip(list(serie['headerMap'].keys()),[search('(?<=\').+(?=\')',str(header[serie['headerMap'][x]])).group() for x in serie['headerMap']]))
                 headerData = self.headerData
 
@@ -205,7 +194,7 @@ class Medicion():
                         elif dataErr['codigo'] == 85: # Cambio de hora
                             self.inicio = dataErr['timeStamp']
                             timeInicioReg = self.inicio
-                            timeFinReg = timeInicioReg
+                            timeFinReg = self.inicio
                             self.stampGen.close()
                             self.stampGen = self.timeStampGen(self.inicio)
                         elif dataErr['isCorte']:
@@ -215,31 +204,20 @@ class Medicion():
                         elif not dataErr['isCorte']:
                             ERR = False
                             timeFinCorte = dataErr['timeStamp']
-                            try:
-                                enRango = inRange(mktime(timeFinCorte),(mktime(timeInicioReg),mktime(timeFinReg)))
-                                if not enRango:
-                                    timeInicioReg,timeFinReg = pad(timeInicioReg,lastTime,timeInicioCorte,timeFinCorte)
-                                    lastTime = timeInicioReg
-                                    padded = True
-                                else:
-                                    pass
-                            except Exception as e:
-                                print(e)
-                                continue
+                            if not inRange(mktime(timeFinCorte),(mktime(timeInicioReg),mktime(timeFinReg))):
+                                timeInicioReg,timeFinReg = pad(timeInicioReg,lastTime,timeInicioCorte,timeFinCorte)
+                                lastTime = timeInicioReg
+                                padded = True
     
                     elif chunk['tipo'] == 'reg' and chunk['data'] != self.headerCalibracion and not ERR:
                         if not padded: timeFinReg = self.stampGen.send(None)
                         padded = False
                         timeInicioReg = self.inicio if not timeInicioReg else lastTime
                         lastTime = timeFinReg 
-                        enPeriodo = inRange(timeInicioCorte,(timeInicioReg,timeFinReg))|inRange(timeFinCorte,(timeInicioReg,timeFinReg))
 
-                        if enPeriodo:
-                            regProcesado,regRaw = self.procesarReg(chunk['data'])
-                            self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
-                        elif not dataErr['isCorte']:
-                            regProcesado,regRaw = self.procesarReg(chunk['data'])
-                            self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':False})
+                        regProcesado,_ = self.procesarReg(chunk['data'])
+                        anomalia = (inRange(timeInicioCorte,(timeInicioReg,timeFinReg)) | inRange(timeFinCorte,(timeInicioReg,timeFinReg)))
+                        self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':anomalia})
 
                 self.genDat()
                 self.genErr()
@@ -264,8 +242,8 @@ class Medicion():
             puntero += 1
 
     def timeStampGen(self,startTime):
-        cuartosDeHora,resto = divmod(mktime(startTime),(self.periodo*60))
-        stampSeconds = cuartosDeHora*(self.periodo*60)
+        cantidadPeriodos,_ = divmod(mktime(startTime),(self.periodo*60))
+        stampSeconds = cantidadPeriodos*(self.periodo*60)
         while True:
             stampSeconds += (self.periodo*60)
             yield localtime(stampSeconds)
@@ -284,24 +262,24 @@ class Medicion():
             horaFinal=strftime('%H:%M',self.final))
 
     def genDat(self):
-        headerData = self.headerData
-        datDump =  open(headerData['filename']+'.dat','w',encoding='utf-8')
-        datDump.write(self.genHeader())
-        for i in self.registrosProcesados:
-            lista = (strftime('%d/%m/%y\t%H:%M',i['timeFinReg']),)+tuple(i['regProcesado'])+('A' if i['Anomalia'] else '',)
-            datDump.write(self.serie['formatoReg']%lista)
+        with open(self.headerData['filename']+'.dat','w',encoding='utf-8') as datDump:
+            datDump.write(self.genHeader())
+            for reg in self.registrosProcesados:
+                lista = (strftime('%d/%m/%y\t%H:%M',reg['timeFinReg']),) + tuple(reg['regProcesado']) + ('A' if reg['Anomalia'] else '',)
+                datDump.write(self.serie['formatoReg']%lista)
 
     def genErr(self):
         headerData = self.headerData
-        errDump = open(headerData['filename']+'.err','w',encoding='utf-8')
-        inicio = strptime(' '.join([headerData['diaInicio'],headerData['mesInicio'],headerData['añoInicio'],headerData['horaInicio'],headerData['minInicio']]),'%d %m %y %H %M')
-        errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',inicio),'Comienzo del Registro.','\n']))
-        for timeStamp,codigo in self.errsProcesados:
-            lista = (strftime('%d/%m/%y\t%H:%M:%S',timeStamp),errCodes[codigo])
-            if self.es1612: continue
-            else: errDump.write(self.serie['formatoErr']%lista)
+        with open(headerData['filename']+'.err','w',encoding='utf-8') as errDump:
+            inicio = strptime(' '.join([headerData['diaInicio'],headerData['mesInicio'],headerData['añoInicio'],headerData['horaInicio'],headerData['minInicio']]),'%d %m %y %H %M')
+            errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',inicio),'Comienzo del Registro.','\n']))
+            for timeStamp,codigo in self.errsProcesados:
+                lista = (strftime('%d/%m/%y\t%H:%M:%S',timeStamp),errCodes[codigo])
+                if self.es1612: continue
+                else: errDump.write(self.serie['formatoErr']%lista)
         
     def procesarErr(self,err):
+        horaCambiada = False
         err = struct.unpack(self.serie['unpackErr'],err)
         err = [str(hex(i)) for i in err]
         err = [search('(?<=x).+',x).group().zfill(2) for x in err]
@@ -310,12 +288,12 @@ class Medicion():
         codigo = int(err[0])
         self.errsProcesados.append((timeStamp,codigo))
 
-        if codigo == 85 and not self.horaCambiada:
-            self.horaCambiada = True
+        if codigo == 85 and not horaCambiada:
+            horaCambiada = True
             return {'codigo':codigo,'isCorte':False,'timeStamp':timeStamp}
         elif codigo == 84: return {'codigo':codigo,'isCorte':False,'timeStamp':timeStamp} 
         elif codigo == 83: return {'codigo':codigo,'isCorte':False,'timeStamp':timeStamp}
-        elif codigo == 85 and self.horaCambiada:
+        elif codigo == 85 and horaCambiada:
             return {'codigo':codigo,'isCorte':False,'timeStamp':timeStamp}
         elif codigo == 82:
             return {'codigo':codigo,'isCorte':True,'timeStamp':timeStamp}
@@ -344,9 +322,4 @@ file = 'Serie vieja M/Originales/010388O1.R32'
 fileDat = 'Serie vieja M/Originales/010388O1.dat'
 
 medicion = Medicion(file,1,1)
-try:
-    medicion.analizarR32()
-except KeyboardInterrupt:
-    # for i in medicion.registrosProcesados:
-    #     print(i)
-    exit()
+medicion.analizarR32()
