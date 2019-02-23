@@ -72,15 +72,25 @@ dataSeries = {
                     },
             '1605':{
                         1:{
-                            'largoRegistro':10,
+                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\tND\tPeriodo:\
+                             {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\t\
+                             Factor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\
+                             \n\nFecha	Hora\tU\tU Max\tU Min\tTHD1\tFlicker\tAnormalidad\n\t\tV\tV\tV\t%\t%\t\n',
+                            'largoRegistro':12,
                             'largoErr':7,
                             'byteSeparador':255,
-                            'factorTension':0,
-                            'factorFlicker':0.0,
-                            'factorThd':0.0,
-                            'packString':'>HHHHH',
-                            'packHeader':'',
-                            'headerMap':dict([reversed(x) for x in enumerate(['filename','periodo','diaInicio','mesInicio','añoInicio','horaInicio','minInicio','diaFin','mesFin','añoFin','horaFin','minFin'])]),},
+                            'variables':['V','Vmax','Vmin','thd','flicker'],
+                            'maxValues':{'V':286,'Vmax':286,'Vmin':286,'thd':10,'flicker':2},
+                            'formatoReg':'%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%s\n',
+                            'formatoErr':'%s\t%s\n',
+                            'getTension':lambda x: x*0.00459564208984375,
+                            'getFlicker':lambda x:x*4.664380212779652e-09,
+                            'getThd':lambda x: x*0.0007659912109375,
+                            'unpackString':'IHHHH',
+                            'unpackErr':'>BBBBBBB',
+                            'unpackHeader':'>8sx2s2s2s2s2s2s3x2s2s2s2s2sxx',
+                            'headerMap':dict([reversed(x) for x in enumerate(['filename','periodo','diaInicio','mesInicio','añoInicio','horaInicio','minInicio','diaFin','mesFin','añoFin','horaFin','minFin'])]),
+                            'regIndexes':{'flicker':0,'thd':1,'Vmin':2,'Vmax':3,'V':4},},
                         3:{
                             'largoRegistro':54,
                             'largoErr':7,
@@ -97,13 +107,13 @@ errCodes = {84:'Descarga de datos',
             82:'Corte de Tensión',
             81:'Vuelta de Tensión',}
 
-def feeder(data,largoRegistro,largoErr,byteSeparador):
+def feeder(data,largoRegistro,largoErr,byteSeparador,flip=True):
     returnData = data[:]
     puntero = len(data)-1
     hold = puntero+1
     OPEN = False
 
-    data = data[::-1]
+    data = data[::-1] if flip else data
     for byte in data:
         size = hold-puntero-1
         if OPEN and byte != byteSeparador: pass
@@ -137,6 +147,7 @@ class Medicion():
         self.TV = TV
         self.TI = TI
         self.serie = self.getSerie()
+        
         self.headerCalibracionRaw = self.calibraciones()
         self.headerCalibracion = struct.unpack(self.serie['unpackHeaderCalibracion']['string'],self.headerCalibracionRaw)
         [self.calibrTension,
@@ -159,7 +170,7 @@ class Medicion():
             return f.read()
 
     def getSerie(self):
-        return dataSeries['Vieja'][1]
+        return dataSeries['1605'][1]
 
     def analizarR32(self):
         serie = self.serie
