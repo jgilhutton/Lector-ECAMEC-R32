@@ -9,6 +9,11 @@ Esta herramienta está destinada a terminar con nuestro sufrimiento y el de los 
 
 Iré modificando y ampliando el programa a medida que vaya descubriendo cosas.
 
+# Este programa, al día de la fecha, puede leer las series:
+
+- Vieja Monofásica
+- 1104 Monofásica
+
 # Requerimientos:
 
 - Python 3. Python es un lenguaje de programación interpretado, de código libre, usado para la creación de este proyecto. Si usan Windows XP, deben obtener una versión de Python menor o igual a la 3.4. Cualquier duda, en www.python.org pueden consultar.
