@@ -5,12 +5,15 @@ from time import asctime,mktime,strptime,localtime,strftime
 dataSeries = {
             'Vieja':{
                         1:{
-                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\tND\tPeriodo: {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\tFactor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\n\nFecha	Hora\tU\tU Max\tU Min\tTHD1\tFlicker\tAnormalidad\n\t\tV\tV\tV\t%\t%\t\n',
+                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\tND\tPeriodo:\
+                             {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\t\
+                             Factor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\
+                             \n\nFecha	Hora\tU\tU Max\tU Min\tTHD1\tFlicker\tAnormalidad\n\t\tV\tV\tV\t%\t%\t\n',
                             'largoRegistro':10,
                             'largoErr':7,
-                            'largoHeaderCalibracion':10,
                             'byteSeparador':255,
                             'variables':['V','Vmax','Vmin','thd','flicker'],
+                            'maxValues':{'V':286,'Vmax':286,'Vmin':286,'thd':10,'flicker':2},
                             'formatoReg':'%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%s\n',
                             'formatoErr':'%s\t%s\n',
                             'getTension':lambda x: x*0.07087628543376923,
@@ -18,7 +21,7 @@ dataSeries = {
                             'getThd':lambda u,v,w,x,y,z: (100/u)*(abs(v-((w/x)*y)))*18/z,
                             'unpackString':'>HHHHH',
                             'unpackErr':'>BBBBBBB',
-                            'unpackHeaderCalibracion':'HHHHH',
+                            'unpackHeaderCalibracion':{'string':'HHHHH','indices':[0,1,2,3,4]},
                             'unpackHeader':'>8sx2s2s2s2s2s2s3x2s2s2s2s2sxx',
                             'headerMap':dict([reversed(x) for x in enumerate(['filename','periodo','diaInicio','mesInicio','añoInicio','horaInicio','minInicio','diaFin','mesFin','añoFin','horaFin','minFin'])]),
                             'regIndexes':{'flicker':0,'thd':1,'Vmin':2,'Vmax':3,'V':4},},
@@ -37,15 +40,26 @@ dataSeries = {
                     },
             '1104':{
                         1:{
+                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\tND\tPeriodo:\
+                             {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\t\
+                             Factor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\
+                             \n\nFecha	Hora\tU\tU Max\tU Min\tTHD1\tFlicker\tAnormalidad\n\t\tV\tV\tV\t%\t%\t\n',
                             'largoRegistro':19,
                             'largoErr':7,
                             'byteSeparador':255,
-                            'factorTension':0.13422811996114395,
-                            'factorFlicker':0.005705854589941206,
-                            'factorThd':0.0014804170914708213,
-                            'packString':'>HHxxxxxxxxxHHH',
-                            'packHeader':'>8sx2s2s2s2s2s2s3x2s2s2s2s2sxx',
-                            'headerMap':dict([reversed(x) for x in enumerate(['filename','periodo','diaInicio','mesInicio','añoInicio','horaInicio','minInicio','diaFin','mesFin','añoFin','horaFin','minFin'])]),},
+                            'variables':['V','Vmax','Vmin','thd','flicker'],
+                            'maxValues':{'V':286,'Vmax':286,'Vmin':286,'thd':10,'flicker':2},
+                            'formatoReg':'%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%s\n',
+                            'formatoErr':'%s\t%s\n',
+                            'getTension':lambda x: x*0.1342281848192215,
+                            'getFlicker':lambda x,y,z: ((x*220*.02)/y)*(100/z),
+                            'getThd':lambda u,v,w,x,y,z: (100/u)*(abs(v-((w/x)*y)))*18/z,
+                            'unpackString':'>HH 9x HHH',
+                            'unpackErr':'>BBBBBBB',
+                            'unpackHeaderCalibracion':{'string':'HxxxxxxxxxxHxxHHxxxxHxx','indices':[3,0,1,4,2]},
+                            'unpackHeader':'>8sx2s2s2s2s2s2s3x2s2s2s2s2sxx',
+                            'headerMap':dict([reversed(x) for x in enumerate(['filename','periodo','diaInicio','mesInicio','añoInicio','horaInicio','minInicio','diaFin','mesFin','añoFin','horaFin','minFin'])]),
+                            'regIndexes':{'flicker':0,'thd':1,'Vmin':2,'Vmax':3,'V':4},},
                         3:{
                             'largoRegistro':54,
                             'largoErr':7,
@@ -123,12 +137,13 @@ class Medicion():
         self.TV = TV
         self.TI = TI
         self.serie = self.getSerie()
-        self.headerCalibracion = self.calibraciones()
+        self.headerCalibracionRaw = self.calibraciones()
+        self.headerCalibracion = struct.unpack(self.serie['unpackHeaderCalibracion']['string'],self.headerCalibracionRaw)
         [self.calibrTension,
         self.calibrTensionNo220,
         self.calibrThd,
         self.calibrResiduo,
-        self.calibrFlicker] = struct.unpack(self.serie['unpackHeaderCalibracion'],self.headerCalibracion)
+        self.calibrFlicker] = [self.headerCalibracion[x] for x in self.serie['unpackHeaderCalibracion']['indices']]
     
     registrosProcesados = []
     errsProcesados = []
@@ -209,7 +224,7 @@ class Medicion():
                                 lastTime = timeInicioReg
                                 padded = True
     
-                    elif chunk['tipo'] == 'reg' and chunk['data'] != self.headerCalibracion and not ERR:
+                    elif chunk['tipo'] == 'reg' and chunk['data'] != self.headerCalibracionRaw[-len(chunk['data']):] and not ERR:
                         if not padded: timeFinReg = self.stampGen.send(None)
                         padded = False
                         timeInicioReg = self.inicio if not timeInicioReg else lastTime
@@ -234,7 +249,7 @@ class Medicion():
                 hold = puntero
                 pass
             elif not OPEN and byte != self.serie['byteSeparador']:
-                if size == self.serie['largoHeaderCalibracion'] and  self.r32[puntero+1] == self.serie['byteSeparador']:
+                if size == struct.calcsize(self.serie['unpackHeaderCalibracion']['string']) and  self.r32[puntero+1] == self.serie['byteSeparador']:
                     return  self.r32[hold+1:puntero+1]
             elif not OPEN and byte == self.serie['byteSeparador']:
                 OPEN = True
@@ -320,6 +335,8 @@ class Medicion():
 # fileDat = 'Serie vieja T/ori.dat'
 file = 'Serie vieja M/Originales/010388O1.R32'
 fileDat = 'Serie vieja M/Originales/010388O1.dat'
+# file = 'Serie 1104 M/010288O1.R32'
+# fileDat = 'Serie 1104 M/010288O1.dat'
 
 medicion = Medicion(file,1,1)
 medicion.analizarR32()
