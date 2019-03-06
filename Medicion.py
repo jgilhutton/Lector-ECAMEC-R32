@@ -3,7 +3,7 @@ from errCodes import errCodes
 from utils import *
 
 import struct
-from re import search
+from re import search,sub
 from time import asctime,mktime,strptime,localtime,strftime
 
 class Medicion():
@@ -25,7 +25,6 @@ class Medicion():
     registrosProcesados = []
     errsProcesados = []
     chunks = []
-    es1612 = False
     inicio = None
     final = None
     periodo = None
@@ -38,7 +37,8 @@ class Medicion():
     def getSerie(self):
         # return '1605',dataSeries['1605'][1]
         # return 'Vieja',dataSeries['Vieja'][1]
-        return '1104',dataSeries['1104'][1]
+        return 'Vieja',dataSeries['Vieja'][3]
+        # return '1104',dataSeries['1104'][1]
 
     def analizarR32(self):
         serie = self.serieDict
@@ -55,6 +55,7 @@ class Medicion():
                 timeInicioReg = self.inicio if not timeInicioReg else lastTime
                 lastTime = timeFinReg
                 if not inRange(timeFinCorte,(timeInicioReg,timeFinReg)):
+                    if self.serieName in ['1612','1605']: continue
                     regProcesado,_ = self.procesarReg(None,padding=True)
                     self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
                 else:
@@ -164,7 +165,7 @@ class Medicion():
             datDump.write(self.genHeader())
             for reg in self.registrosProcesados:
                 lista = (strftime('%d/%m/%y\t%H:%M',reg['timeFinReg']),) + tuple(reg['regProcesado']) + ('A' if reg['Anomalia'] else '',)
-                datDump.write(self.serieDict['formatoReg']%lista)
+                datDump.write(sub('\.',',',self.serieDict['formatoReg']%lista))
 
     def genErr(self):
         headerData = self.headerData
@@ -173,7 +174,7 @@ class Medicion():
             errDump.write('\t'.join([strftime('%d/%m/%y\t%H:%M:%S',inicio),'Comienzo del Registro.','\n']))
             for timeStamp,codigo in self.errsProcesados:
                 lista = (strftime('%d/%m/%y\t%H:%M:%S',timeStamp),errCodes[codigo])
-                if self.es1612: continue
+                if self.serieName == '1612': continue
                 else: errDump.write(self.serieDict['formatoErr']%lista)
         
     def procesarErr(self,err):
