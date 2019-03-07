@@ -36,10 +36,10 @@ def inRange(valor,*arg):
     if not valor or not all([all(x) for x in arg]): return False
     return all([rango[0] <= valor <= rango[1] for rango in arg])
 
-def debugPrint(separador=True,*args,**kwargs):
-    if separador: print(' DEBUG '.center(100,'#'))
+def debugPrint(*args,**kwargs):
+    print(' DEBUG '.center(100,'#'))
     if args:
         print(','.join(map(str,args)))
     if kwargs:
         print(','.join([str(x) for x in zip(kwargs.keys(),kwargs.values())]))
-    if separador: print(' DEBUG '.center(100,'#'))
+    print(' DEBUG '.center(100,'#'))

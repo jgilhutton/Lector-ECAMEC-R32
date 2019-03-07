@@ -11,9 +11,9 @@ class Medicion():
         self.r32 = self.openR32(fileName)
         self.TV = TV
         self.TI = TI
-        self.serieName,self.serieDict = self.getSerie()
+        self.serieName,self.serieDict,self.trifasico = self.getSerie()
         
-        if self.serieName in ['Vieja','1104']:
+        if self.serieName in ['Vieja','1104'] and not self.trifasico:
             self.headerCalibracionRaw = self.calibraciones()
             self.headerCalibracion = struct.unpack(self.serieDict['unpackHeaderCalibracion']['string'],self.headerCalibracionRaw)
             [self.calibrTension,
@@ -35,9 +35,10 @@ class Medicion():
             return f.read()
 
     def getSerie(self):
+        trifasico = True
         # return '1605',dataSeries['1605'][1]
         # return 'Vieja',dataSeries['Vieja'][1]
-        return 'Vieja',dataSeries['Vieja'][3]
+        return 'Vieja',dataSeries['Vieja'][3],trifasico
         # return '1104',dataSeries['1104'][1]
 
     def analizarR32(self):
@@ -55,9 +56,9 @@ class Medicion():
                 timeInicioReg = self.inicio if not timeInicioReg else lastTime
                 lastTime = timeFinReg
                 if not inRange(timeFinCorte,(timeInicioReg,timeFinReg)):
-                    if self.serieName in ['1612','1605']: continue
-                    regProcesado,_ = self.procesarReg(None,padding=True)
-                    self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
+                    if self.serieDict['padding']:
+                        regProcesado,_ = self.procesarReg(None,padding=True)
+                        self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
                 else:
                     return timeInicioReg,timeFinReg
         
@@ -71,6 +72,7 @@ class Medicion():
             if tipo in ['err','reg']:
                 self.chunks.append({'tipo':tipo,'data':data})
             elif tipo == 'header':
+                print(data)
                 try: header = struct.unpack(serie['unpackHeader'],data)
                 except: header = struct.unpack(serie['unpackHeaderSecundario'],data)
 
@@ -106,7 +108,7 @@ class Medicion():
                                 padded = True
     
                     elif chunk['tipo'] == 'reg' and not ERR:
-                        if self.serieName in ['1104','Vieja']:
+                        if self.serieName in ['1104','Vieja'] and not self.trifasico:
                             if chunk['data'] == self.headerCalibracionRaw[-len(chunk['data']):]: continue
                         if not padded: timeFinReg = self.stampGen.send(None)
                         padded = False
@@ -150,6 +152,7 @@ class Medicion():
     def genHeader(self):
         return self.serieDict['headerDat'].format(
             filename=self.headerData['filename'],
+            serie=self.headerData['serie'],
             periodo=self.periodo,
             Utiempo=self.uTimePeriodo,
             tension='220',
@@ -202,19 +205,50 @@ class Medicion():
 
     def procesarReg(self,reg,padding=False):
         if padding:
-            return [0.0 for _ in range(len(self.serieDict['variables']))],None
+            return [0.0 for _ in range(self.serieDict['variables'])],None
         data = struct.unpack(self.serieDict['unpackString'],reg)
         dataRaw = dict(zip(self.serieDict['regIndexes'],[data[x] for x in self.serieDict['regIndexes'].values()]))
-        V = self.serieDict['getTension'](dataRaw['V'])
-        Vmax = self.serieDict['getTension'](dataRaw['Vmax'])
-        Vmin = self.serieDict['getTension'](dataRaw['Vmin'])
-        if self.serieName in ['1104','Vieja']:
-            thd = self.serieDict['getThd'](V,dataRaw['thd'],self.calibrResiduo,self.calibrTension,dataRaw['V'],self.calibrThd)
-            flicker = self.serieDict['getFlicker'](dataRaw['flicker'],self.calibrFlicker,V)
-        elif self.serieName in ['1605']:
-            thd = self.serieDict['getThd'](dataRaw['thd'])
-            flicker = self.serieDict['getFlicker'](dataRaw['flicker'])
-        if thd>10: thd = 10.0
-        if flicker>2: flicker = 2.0
-        
-        return (V,Vmax,Vmin,thd,flicker),data
+
+        if self.trifasico:
+            VR = self.serieDict['getTension'](dataRaw['VR'])
+            VRmax =self.serieDict['getTension'](dataRaw['VRmax'])
+            VRmin =self.serieDict['getTension'](dataRaw['VRmin'])
+            IR = self.serieDict['getTension'](dataRaw['IR'])
+            energiaR = self.serieDict['getEnergia'](dataRaw['ERb1'],dataRaw['ERb2'],dataRaw['ERb3'])
+            cosPhiR = self.serieDict['getCosPhi'](energiaR,IR,VR,self.periodo)
+
+            VS = self.serieDict['getTension'](dataRaw['VS'])
+            VSmax =self.serieDict['getTension'](dataRaw['VSmax'])
+            VSmin =self.serieDict['getTension'](dataRaw['VSmin'])
+            IS = self.serieDict['getTension'](dataRaw['IS'])
+            energiaS = self.serieDict['getEnergia'](dataRaw['ESb1'],dataRaw['ESb2'],dataRaw['ESb3'])
+            cosPhiS = self.serieDict['getCosPhi'](energiaS,IS,VS,self.periodo)
+
+            VT = self.serieDict['getTension'](dataRaw['VT'])
+            VTmax =self.serieDict['getTension'](dataRaw['VSmax'])
+            VTmin =self.serieDict['getTension'](dataRaw['VSmin'])
+            IT = self.serieDict['getTension'](dataRaw['IT'])
+            energiaT = self.serieDict['getEnergia'](dataRaw['ETb1'],dataRaw['ETb2'],dataRaw['ETb3'])
+            cosPhiT = self.serieDict['getCosPhi'](energiaT,IT,VT,self.periodo)
+
+            totalEnergia = sum((energiaR,energiaS,energiaT))
+            totalPotencia = sum((VR*IR*cosPhiR/1000,VS*IS*cosPhiS/1000,VT*IT*cosPhiT/1000,))
+
+            thd = 1.666
+            flicker = 1.666
+            
+            return (VR,VRmax,VRmin,IR,cosPhiR,energiaR,VS,VSmax,VSmin,IS,cosPhiS,energiaS,VT,VTmax,VTmin,IT,cosPhiT,energiaT,thd,flicker,totalEnergia,totalPotencia),data
+
+        else:
+            V = self.serieDict['getTension'](dataRaw['V'])
+            Vmax = self.serieDict['getTension'](dataRaw['Vmax'])
+            Vmin = self.serieDict['getTension'](dataRaw['Vmin'])
+            if self.serieName in ['1104','Vieja']:
+                thd = self.serieDict['getThd'](V,dataRaw['thd'],self.calibrResiduo,self.calibrTension,dataRaw['V'],self.calibrThd)
+                flicker = self.serieDict['getFlicker'](dataRaw['flicker'],self.calibrFlicker,V)
+            elif self.serieName in ['1605']:
+                thd = self.serieDict['getThd'](dataRaw['thd'])
+                flicker = self.serieDict['getFlicker'](dataRaw['flicker'])
+            if thd>10: thd = 10.0
+            if flicker>2: flicker = 2.0
+            return (V,Vmax,Vmin,thd,flicker),data
