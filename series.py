@@ -1,7 +1,7 @@
 dataSeries = {
             'Vieja':{
                         1:{
-                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\tND\tPeriodo:\
+                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\t{serie}\tPeriodo:\
                              {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\t\
                              Factor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\
                              \n\nFecha	Hora\tU\tU Max\tU Min\tTHD1\tFlicker\tAnormalidad\n\t\tV\tV\tV\t%\t%\t\n',
@@ -13,8 +13,8 @@ dataSeries = {
                             'formatoReg':'%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%s\n',
                             'formatoErr':'%s\t%s\n',
                             'getTension':lambda V: V*0.07087628543376923,
-                            'getFlicker':lambda x,y,z: ((x*220*.02)/y)*(100/z),
-                            'getThd':lambda u,v,w,x,y,z: (100/u)*(abs(v-((w/x)*y)))*18/z,
+                            'getFlicker':lambda flickerRaw,calibrFlicker,V: ((flickerRaw*220*.02)/calibrFlicker)*(100/V),
+                            'getThd':lambda V,thdRaw,calibrResiduo,calibrTension,vRaw,calibrThd: (100/V)*(abs(thdRaw-((calibrResiduo/calibrTension)*vRaw)))*18/calibrThd,
                             'unpackString':'>HHHHH',
                             'unpackErr':'>BBBBBBB',
                             'unpackHeaderCalibracion':{'string':'HHHHH','indices':[0,1,2,3,4]},
@@ -25,10 +25,7 @@ dataSeries = {
                             'headerMap':dict([reversed(x) for x in enumerate(['filename','periodo','diaInicio','mesInicio','añoInicio','horaInicio','minInicio','diaFin','mesFin','añoFin','horaFin','minFin'])]),
                             'regIndexes':{'flicker':0,'thd':1,'Vmin':2,'Vmax':3,'V':4},},
                         3:{
-                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\t{serie}\tPeriodo:\
-                             {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\t\
-                             Factor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\
-                             \n\nFecha	Hora\tU\tU Max\tU Min\tTHD1\tFlicker\tAnormalidad\n\t\tV\tV\tV\t%\t%\t\n',
+                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t\nNumero de Serie:\t{serie}\tPeriodo:{periodo} {Utiempo}.\nTensión:\t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\tFactor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\n\nFecha\tHora\tU1\tU1 Max\tU1 Min\tI1\tFP 1\tEA1\tU2\tU2 Max\tU2 Min\tI2\tFP 2\tEA2\tU3\tU3 Max\tU3 Min\tI3\tFP 3\tEA3\tTHD1\tFlicker1\tP Total\tEA Total\tAnormalidad\n\t\tV\tV\tV\tA\tp.u.\tKWh\tV\tV\tV\tA\tp.u.\tKWh\tV\tV\tV\tA\tp.u.\tKWh\t%\t%\tKW\tKWh\t\n',
                             'largoRegistro':42,
                             'largoErr':7,
                             'byteSeparador':255,
@@ -37,23 +34,25 @@ dataSeries = {
                             'formatoReg':'%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%0.3f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%0.3f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%0.3f\t%0.2f\t%0.3f\t%0.3f\t%0.3f\t%s\n',
                             'formatoErr':'%s\t%s\n',
                             'getTension':lambda V: V*0.008392460165229354,
-                            'getCorriente':lambda I: I*0.005086235518683759,
-                            'getEnergia':lambda j,k,l: ((((j<<7)|k)<<7)|l)*0.015687283128499985/1000,
+                            'getCorriente':lambda I: I*0.0050863404758274555,
+                            'getEnergia':lambda j,k,l: ((((j<<7)+k)<<7)+l)*0.015687283128499985/1000,
                             'getCosPhi':lambda energia,I,V,periodo: energia/(I*V/1000*periodo/60),
-                            'unpackString':'>xx x 2x 3b H HHH 2x 3b H HHH 2x 3b H HHH',
+                            'getFlicker':lambda flickerRaw,calibrFlicker,V: ((flickerRaw*220*.02)/calibrFlicker)*(100/V),
+                            'getThd':lambda V,thdRaw,calibrResiduo,calibrTension,vRaw,calibrThd: (100/V)*(abs(thdRaw-((calibrResiduo/calibrTension)*vRaw)))*18/calibrThd,
+                            'unpackString':'>xx x H 3b H HHH H 3b H HHH H 3b H HHH',
                             'unpackErr':'>BBBBBBB',
+                            'unpackHeaderCalibracion':{'string':'HHHHHHH','indices':[2,3,0,1,6]},
                             'unpackHeader':'>8s x 2s 2s2s2s2s2s 3x 2s2s2s2s2s 5x 8s 11x',
                             'unpackHeaderSecundario':'>8s x 2s 2s2s2s2s2s 3x 2s2s2s2s2s 3x 8s 12x',
-                            'headerBasura':'>14x',
+                            'headerBasura':'',
                             'padding':False,
                             'headerMap':dict([reversed(x) for x in enumerate(['serie','periodo','diaInicio','mesInicio','añoInicio','horaInicio','minInicio',
                             'diaFin','mesFin','añoFin','horaFin','minFin','filename'])]),
-                            'unpackHeaderCalibracion':{'string':'','indices':None},
-                            'regIndexes':{'ETb1':0,'ETb2':1,'ETb3':2,'IT':3,'VTmin':4,'VTmax':5,'VT':6,'ESb1':7,'ESb2':8,'ESb3':9,'IS':10,'VSmin':11,'VSmax':12,'VS':13,'ERb1':14,'ERb2':15,'ERb3':16,'IR':17,'VRmin':18,'VRmax':19,'VR':20,},},
+                            'regIndexes':{'thdT':0,'ETb1':1,'ETb2':2,'ETb3':3,'IT':4,'VTmin':5,'VTmax':6,'VT':7,'thdS':8,'ESb1':9,'ESb2':10,'ESb3':11,'IS':12,'VSmin':13,'VSmax':14,'VS':15,'thdR':16,'ERb1':17,'ERb2':18,'ERb3':19,'IR':20,'VRmin':21,'VRmax':22,'VR':23,},},
                     },
             '1104':{
                         1:{
-                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\tND\tPeriodo:\
+                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\t{serie}\tPeriodo:\
                              {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\t\
                              Factor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\
                              \n\nFecha	Hora\tU\tU Max\tU Min\tTHD1\tFlicker\tAnormalidad\n\t\tV\tV\tV\t%\t%\t\n',
@@ -88,7 +87,7 @@ dataSeries = {
                     },
             '1605':{
                         1:{
-                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\tND\tPeriodo:\
+                            'headerDat':'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t        \nNumero de Serie:\t{seri\tPeriodo:\
                              {periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\t\
                              Factor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\
                              \n\nFecha	Hora\tU\tU Max\tU Min\tTHD U\tFlicker\tAnormalidad\n\t\tV\tV\tV\t%\t%\t\n',

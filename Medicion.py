@@ -13,7 +13,7 @@ class Medicion():
         self.TI = TI
         self.serieName,self.serieDict,self.trifasico = self.getSerie()
         
-        if self.serieName in ['Vieja','1104'] and not self.trifasico:
+        if self.serieName in ['Vieja','1104']:
             self.headerCalibracionRaw = self.calibraciones()
             self.headerCalibracion = struct.unpack(self.serieDict['unpackHeaderCalibracion']['string'],self.headerCalibracionRaw)
             [self.calibrTension,
@@ -152,7 +152,7 @@ class Medicion():
     def genHeader(self):
         return self.serieDict['headerDat'].format(
             filename=self.headerData['filename'],
-            serie=self.headerData['serie'],
+            serie=self.headerData['serie'] if self.headerData.__contains__('serie') else 'ND',
             periodo=self.periodo,
             Utiempo=self.uTimePeriodo,
             tension='220',
@@ -213,21 +213,21 @@ class Medicion():
             VR = self.serieDict['getTension'](dataRaw['VR'])
             VRmax =self.serieDict['getTension'](dataRaw['VRmax'])
             VRmin =self.serieDict['getTension'](dataRaw['VRmin'])
-            IR = self.serieDict['getTension'](dataRaw['IR'])
+            IR = self.serieDict['getCorriente'](dataRaw['IR'])
             energiaR = self.serieDict['getEnergia'](dataRaw['ERb1'],dataRaw['ERb2'],dataRaw['ERb3'])
             cosPhiR = self.serieDict['getCosPhi'](energiaR,IR,VR,self.periodo)
 
             VS = self.serieDict['getTension'](dataRaw['VS'])
             VSmax =self.serieDict['getTension'](dataRaw['VSmax'])
             VSmin =self.serieDict['getTension'](dataRaw['VSmin'])
-            IS = self.serieDict['getTension'](dataRaw['IS'])
+            IS = self.serieDict['getCorriente'](dataRaw['IS'])
             energiaS = self.serieDict['getEnergia'](dataRaw['ESb1'],dataRaw['ESb2'],dataRaw['ESb3'])
             cosPhiS = self.serieDict['getCosPhi'](energiaS,IS,VS,self.periodo)
 
             VT = self.serieDict['getTension'](dataRaw['VT'])
             VTmax =self.serieDict['getTension'](dataRaw['VSmax'])
             VTmin =self.serieDict['getTension'](dataRaw['VSmin'])
-            IT = self.serieDict['getTension'](dataRaw['IT'])
+            IT = self.serieDict['getCorriente'](dataRaw['IT'])
             energiaT = self.serieDict['getEnergia'](dataRaw['ETb1'],dataRaw['ETb2'],dataRaw['ETb3'])
             cosPhiT = self.serieDict['getCosPhi'](energiaT,IT,VT,self.periodo)
 
@@ -235,9 +235,9 @@ class Medicion():
             totalPotencia = sum((VR*IR*cosPhiR/1000,VS*IS*cosPhiS/1000,VT*IT*cosPhiT/1000,))
 
             thd = 1.666
-            flicker = 1.666
+            flicker = self.serieDict['getFlicker'](dataRaw['flicker'],self.calibrFlicker,V)
             
-            return (VR,VRmax,VRmin,IR,cosPhiR,energiaR,VS,VSmax,VSmin,IS,cosPhiS,energiaS,VT,VTmax,VTmin,IT,cosPhiT,energiaT,thd,flicker,totalEnergia,totalPotencia),data
+            return (VR,VRmax,VRmin,IR,cosPhiR,energiaR,VS,VSmax,VSmin,IS,cosPhiS,energiaS,VT,VTmax,VTmin,IT,cosPhiT,energiaT,thd,flicker,totalPotencia,totalEnergia,),data
 
         else:
             V = self.serieDict['getTension'](dataRaw['V'])
