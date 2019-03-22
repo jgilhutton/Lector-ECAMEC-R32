@@ -121,11 +121,7 @@ class Medicion():
         self.calibrThd,
         self.calibrResiduo,
         self.calibrFlicker] = [self.headerCalibracion[x] for x in self.serie.unpackHeaderCalibracion['indices']]
-        print([self.calibrTension,
-        self.calibrTensionNo220,
-        self.calibrThd,
-        self.calibrResiduo,
-        self.calibrFlicker])
+        self.calibrTension = 220.0 if (self.serie.name == 'Vieja' and self.serie.trifasico) else self.calibrTension
 
     def timeStampGen(self,startTime):
         cantidadPeriodos,_ = divmod(mktime(startTime),(self.periodo*60))
@@ -219,9 +215,11 @@ class Medicion():
             totalEnergia = sum((energiaR,energiaS,energiaT))
             totalPotencia = sum((VR*IR*cosPhiR/1000,VS*IS*cosPhiS/1000,VT*IT*cosPhiT/1000,))
 
-            thd = 1.666
-            # flicker = self.serie.getFlicker(dataRaw['flicker'],self.calibrFlicker,V)
-            flicker = 6.111
+            thdR = self.serie.getThd(VR,dataRaw['thdR'],self.calibrResiduo,self.calibrTension,self.calibrThd)
+            thdS = self.serie.getThd(VS,dataRaw['thdS'],self.calibrResiduo,self.calibrTension,self.calibrThd)
+            thdT = self.serie.getThd(VT,dataRaw['thdT'],self.calibrResiduo,self.calibrTension,self.calibrThd)
+            thd=thdR
+            flicker = self.serie.getFlicker(dataRaw['flicker'],self.calibrFlicker,VR)
             
             return (VR,VRmax,VRmin,IR,cosPhiR,energiaR,VS,VSmax,VSmin,IS,cosPhiS,energiaS,VT,VTmax,VTmin,IT,cosPhiT,energiaT,thd,flicker,totalPotencia,totalEnergia,),data
 

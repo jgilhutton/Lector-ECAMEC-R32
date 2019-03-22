@@ -42,7 +42,6 @@ class serieViejaTrifasica:
     largoHeaderBasura = 13
     largoHeaderCalibracion = 14
     regex = '(?P<calibr>(?<={byteSeparador})[^{byteSeparador}]{largoHeaderCalibracion})?(?P<basura>[^{byteSeparador}]{largoHeaderBasura})(?P<header>[^{byteSeparador}]{largoHeader2}(?P<ffSeparated>{byteSeparador})?[^{byteSeparador}]{largoHeader1}(?={byteSeparador}))|(?P<reg>[^{byteSeparador}]{largoRegistro})|(?P<err>(?<={byteSeparador}).{largoErr}(?={byteSeparador}))'.format(byteSeparador=byteSeparador,largoErr='{%d}'%largoErr,largoHeader1='{%d}'%largosHeader[0],largoHeader2='{%d}'%largosHeader[1],largoHeaderCalibracion='{%d}'%largoHeaderCalibracion,largoRegistro='{%d}'%largoRegistro,largoHeaderBasura='{%d}'%largoHeaderBasura).encode('latin-1')
-    print(regex)
     variables = 22
     
     formatoReg = '%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%0.3f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%0.3f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%0.3f\t%0.2f\t%0.3f\t%0.3f\t%0.3f\t%s\n'
@@ -53,16 +52,16 @@ class serieViejaTrifasica:
     getEnergia = lambda self,j,k,l: ((((j<<7)+k)<<7)+l)*0.015687283128499985/1000
     getCosPhi = lambda self,energia,I,V,periodo: energia/(I*V/1000*periodo/60)
     getFlicker = lambda self,flickerRaw,calibrFlicker,V: ((flickerRaw*220*.02)/calibrFlicker)*(100/V)
-    getThd = lambda self,V,thdRaw,calibrResiduo,calibrTension,vRaw,calibrThd: (100/V)*(abs(thdRaw-((calibrResiduo/calibrTension)*vRaw)))*18/calibrThd
+    getThd = lambda self,V,thdRaw,calibrResiduo,calibrTension,calibrThd: (100/V)*((18/(calibrThd-calibrResiduo))*(thdRaw-(V*int(calibrResiduo/calibrTension))))
     
-    unpackReg = '>xx x H 3b H HHH H 3b H HHH H 3b H HHH'
+    unpackReg = '>x H H 3b H HHH H 3b H HHH H 3b H HHH'
     unpackHeader = '>8s x 2s 2s2s2s2s2s 3x 2s2s2s2s2s 2x 8s'
     unpackHeaderSecundario = '>8s x 2s 2s2s2s2s2s 3x 2s2s2s2s2s 3x 8s'
-    unpackHeaderCalibracion = {'string':'HHHHHHH','indices':[2,3,0,1,6]}
+    unpackHeaderCalibracion = {'string':'HHHHHHH','indices':[2,3,4,5,6]}
     unpackErr = '>BBBBBBB'
 
     headerMap = dict([reversed(x) for x in enumerate(['serie','periodo','diaInicio','mesInicio','añoInicio','horaInicio','minInicio','diaFin','mesFin','añoFin','horaFin','minFin','filename'])])
-    regIndexes = {'thdT':0,'ETb1':1,'ETb2':2,'ETb3':3,'IT':4,'VTmin':5,'VTmax':6,'VT':7,'thdS':8,'ESb1':9,'ESb2':10,'ESb3':11,'IS':12,'VSmin':13,'VSmax':14,'VS':15,'thdR':16,'ERb1':17,'ERb2':18,'ERb3':19,'IR':20,'VRmin':21,'VRmax':22,'VR':23,}
+    regIndexes = {'flicker':0,'thdT':1,'ETb1':2,'ETb2':3,'ETb3':4,'IT':5,'VTmin':6,'VTmax':7,'VT':8,'thdS':9,'ESb1':10,'ESb2':11,'ESb3':12,'IS':13,'VSmin':14,'VSmax':15,'VS':16,'thdR':17,'ERb1':18,'ERb2':19,'ERb3':20,'IR':21,'VRmin':22,'VRmax':23,'VR':24,}
     
     padding = False
     trifasico = True
