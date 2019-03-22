@@ -12,15 +12,6 @@ class Medicion():
         self.TV = TV
         self.TI = TI
         self.serie = self.getSerie()
-        
-        if self.serie.name in ['Vieja','1104']:
-            self.headerCalibracionRaw = self.calibraciones()
-            self.headerCalibracion = struct.unpack(self.serie.unpackHeaderCalibracion['string'],self.headerCalibracionRaw)
-            [self.calibrTension,
-            self.calibrTensionNo220,
-            self.calibrThd,
-            self.calibrResiduo,
-            self.calibrFlicker] = [self.headerCalibracion[x] for x in self.serie.unpackHeaderCalibracion['indices']]
     
     registrosProcesados = []
     errsProcesados = []
@@ -35,7 +26,7 @@ class Medicion():
             return f.read()
 
     def getSerie(self):
-        return serie1605Monofasica()
+        return serieViejaTrifasica()
 
     def analizarR32(self):
         serie = self.serie
@@ -64,12 +55,18 @@ class Medicion():
             self.errsProcesados = []
             self.stampGen.close()
 
-        for tipo,data in feeder(self.r32,serie.largoRegistro,serie.largoErr,struct.calcsize(serie.unpackHeaderSecundario),struct.calcsize(serie.unpackHeaderCalibracion['string']),serie.byteSeparador):
-            if tipo in ['err','reg']:
-                self.chunks.append({'tipo':tipo,'data':data})
-            elif tipo == 'header':
-                try: header = struct.unpack(serie.unpackHeader,data)
-                except: header = struct.unpack(serie.unpackHeaderSecundario,data)
+        for dataDict in feeder(self.r32,serie.regex):
+            if dataDict['err']:
+                self.chunks.append({'tipo':'err','data':dataDict['err'][::-1]})
+            elif dataDict['reg']:
+                self.chunks.append({'tipo':'reg','data':dataDict['reg'][::-1]})
+            elif dataDict['header']:
+                # print(dataDict)
+                if dataDict['calibr']:
+                    self.calibraciones(dataDict['calibr'][::-1])
+                if dataDict['ffSeparated']: header = struct.unpack(serie.unpackHeaderSecundario,dataDict['header'][::-1])
+                else:
+                    header = struct.unpack(serie.unpackHeader,dataDict['header'][::-1])
 
                 self.headerData = dict(zip(list(serie.headerMap.keys()),[search('(?<=\').+(?=\')',str(header[serie.headerMap[x]])).group() for x in serie.headerMap]))
                 headerData = self.headerData
@@ -103,8 +100,6 @@ class Medicion():
                                 padded = True
     
                     elif chunk['tipo'] == 'reg' and not ERR:
-                        if self.serie.name in ['1104','Vieja'] and not self.serie.trifasico:
-                            if chunk['data'] == self.headerCalibracionRaw[-len(chunk['data']):]: continue
                         if not padded: timeFinReg = self.stampGen.send(None)
                         padded = False
                         timeInicioReg = self.inicio if not timeInicioReg else lastTime
@@ -119,23 +114,18 @@ class Medicion():
                 self.genErr()
                 reset()
 
-    def calibraciones(self):
-        puntero = 0
-        hold = 0
-        OPEN = False
-        for byte in self.r32:
-            size = puntero-hold
-            if OPEN and byte == self.serie.byteSeparador:
-                OPEN = False
-                hold = puntero
-                pass
-            elif not OPEN and byte != self.serie.byteSeparador:
-                if size == struct.calcsize(self.serie.unpackHeaderCalibracion['string']) and  self.r32[puntero+1] == self.serie.byteSeparador:
-                    return  self.r32[hold+1:puntero+1]
-            elif not OPEN and byte == self.serie.byteSeparador:
-                OPEN = True
-                hold = puntero
-            puntero += 1
+    def calibraciones(self,data):
+        self.headerCalibracion = struct.unpack(self.serie.unpackHeaderCalibracion['string'],data)
+        [self.calibrTension,
+        self.calibrTensionNo220,
+        self.calibrThd,
+        self.calibrResiduo,
+        self.calibrFlicker] = [self.headerCalibracion[x] for x in self.serie.unpackHeaderCalibracion['indices']]
+        print([self.calibrTension,
+        self.calibrTensionNo220,
+        self.calibrThd,
+        self.calibrResiduo,
+        self.calibrFlicker])
 
     def timeStampGen(self,startTime):
         cantidadPeriodos,_ = divmod(mktime(startTime),(self.periodo*60))
@@ -201,7 +191,7 @@ class Medicion():
     def procesarReg(self,reg,padding=False):
         if padding:
             return [0.0 for _ in range(self.serie.variables)],None
-        data = struct.unpack(self.serie.unpackString,reg)
+        data = struct.unpack(self.serie.unpackReg,reg)
         dataRaw = dict(zip(self.serie.regIndexes,[data[x] for x in self.serie.regIndexes.values()]))
 
         if self.serie.trifasico:
@@ -230,7 +220,8 @@ class Medicion():
             totalPotencia = sum((VR*IR*cosPhiR/1000,VS*IS*cosPhiS/1000,VT*IT*cosPhiT/1000,))
 
             thd = 1.666
-            flicker = self.serie.getFlicker(dataRaw['flicker'],self.calibrFlicker,V)
+            # flicker = self.serie.getFlicker(dataRaw['flicker'],self.calibrFlicker,V)
+            flicker = 6.111
             
             return (VR,VRmax,VRmin,IR,cosPhiR,energiaR,VS,VSmax,VSmin,IS,cosPhiS,energiaS,VT,VTmax,VTmin,IT,cosPhiT,energiaT,thd,flicker,totalPotencia,totalEnergia,),data
 
