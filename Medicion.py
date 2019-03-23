@@ -6,7 +6,7 @@ import struct
 from re import search,sub
 from time import asctime,mktime,strptime,localtime,strftime
 
-class Medicion():
+class Medicion:
     def __init__(self,fileName,TV,TI):
         self.r32 = self.openR32(fileName)
         self.TV = TV
@@ -26,7 +26,7 @@ class Medicion():
             return f.read()
 
     def getSerie(self):
-        return serieViejaTrifasica()
+        return serie1104Trifasica()
 
     def analizarR32(self):
         serie = self.serie
@@ -121,7 +121,7 @@ class Medicion():
         self.calibrThd,
         self.calibrResiduo,
         self.calibrFlicker] = [self.headerCalibracion[x] for x in self.serie.unpackHeaderCalibracion['indices']]
-        self.calibrTension = 220.0 if (self.serie.name == 'Vieja' and self.serie.trifasico) else self.calibrTension
+        self.calibrTension = 220.0 if (self.serie.name in ['Vieja','1104'] and self.serie.trifasico) else self.calibrTension
 
     def timeStampGen(self,startTime):
         cantidadPeriodos,_ = divmod(mktime(startTime),(self.periodo*60))
@@ -212,16 +212,20 @@ class Medicion():
             energiaT = self.serie.getEnergia(dataRaw['ETb1'],dataRaw['ETb2'],dataRaw['ETb3'])
             cosPhiT = self.serie.getCosPhi(energiaT,IT,VT,self.periodo)
 
-            totalEnergia = sum((energiaR,energiaS,energiaT))
-            totalPotencia = sum((VR*IR*cosPhiR/1000,VS*IS*cosPhiS/1000,VT*IT*cosPhiT/1000,))
-
             thdR = self.serie.getThd(VR,dataRaw['thdR'],self.calibrResiduo,self.calibrTension,self.calibrThd)
             thdS = self.serie.getThd(VS,dataRaw['thdS'],self.calibrResiduo,self.calibrTension,self.calibrThd)
             thdT = self.serie.getThd(VT,dataRaw['thdT'],self.calibrResiduo,self.calibrTension,self.calibrThd)
             thd=thdR
             flicker = self.serie.getFlicker(dataRaw['flicker'],self.calibrFlicker,VR)
-            
-            return (VR,VRmax,VRmin,IR,cosPhiR,energiaR,VS,VSmax,VSmin,IS,cosPhiS,energiaS,VT,VTmax,VTmin,IT,cosPhiT,energiaT,thd,flicker,totalPotencia,totalEnergia,),data
+            if thd>10: thd = 10.0
+            if flicker>2: flicker = 2.0
+
+            totalEnergia = sum((energiaR,energiaS,energiaT))
+            if self.serie.name != '1104':
+                totalPotencia = sum((VR*IR*cosPhiR/1000,VS*IS*cosPhiS/1000,VT*IT*cosPhiT/1000,))
+                return (VR,VRmax,VRmin,IR,cosPhiR,energiaR,VS,VSmax,VSmin,IS,cosPhiS,energiaS,VT,VTmax,VTmin,IT,cosPhiT,energiaT,thd,flicker,totalPotencia,totalEnergia,),data
+            else:
+                return (VR,VRmax,VRmin,IR,cosPhiR,energiaR,VS,VSmax,VSmin,IS,cosPhiS,energiaS,VT,VTmax,VTmin,IT,cosPhiT,energiaT,thd,flicker,totalEnergia,),data
 
         else:
             V = self.serie.getTension(dataRaw['V'])
