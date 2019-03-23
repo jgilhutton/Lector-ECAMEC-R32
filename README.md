@@ -12,8 +12,11 @@ Iré modificando y ampliando el programa a medida que vaya descubriendo cosas.
 # Este programa, al día de la fecha, puede leer las series:
 
 - Vieja Monofásica
+- Vieja Trifásica
 - 1104 Monofásica
+- 1104 Trifásica
 - 1605 Monofásica
+- 1605 Trifásica
 
 # Requerimientos:
 
