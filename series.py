@@ -67,32 +67,37 @@ class serieViejaTrifasica:
     trifasico = True
 
 class serie1104Monofasica:
+    def __init__(self,dup):
+        if dup:
+            self.largoRegistro = 15
+            self.unpackReg = '>HH 5x HHH'
+            self.getTension = lambda x: x*0.12373453378677368
+        else:
+            self.largoRegistro = 19
+            self.unpackReg = '>HH 9x HHH'
+            self.getTension = lambda x: x*0.1342281848192215
+        self.largoErr = 7
+        self.variables = 5
+        self.largosHeader = [36,0]
+        self.byteSeparador = '\xff'
+        self.largoHeaderCalibracion = 28
+        self.unpackHeaderCalibracion = {'string':'HxxxxxxxxxxHxxHHxxxxHxx','indices':[3,0,1,4,2]}
+        self.regex = '(?P<calibr>[^{byteSeparador}]{largoHeaderCalibracion})?{byteSeparador}(?P<header>[^{byteSeparador}]{largoHeader2}(?P<ffSeparated>{byteSeparador})?[^{byteSeparador}]{largoHeader1}(?={byteSeparador}))|(?P<reg>[^{byteSeparador}]{largoRegistro})|(?P<err>(?<={byteSeparador}).{largoErr}(?={byteSeparador}))'.format(byteSeparador=self.byteSeparador,largoErr='{%d}'%self.largoErr,largoHeader1='{%d}'%self.largosHeader[0],largoHeader2='{%d}'%self.largosHeader[1],largoHeaderCalibracion='{%d}'%self.largoHeaderCalibracion,largoRegistro='{%d}'%self.largoRegistro).encode('latin-1')
+
     headerDat = 'Equipo Nro:\t{filename}\t\tCódigo de Cliente: \tID. Subestación:\t{subestacion}\nNumero de Serie:\t{serie}\tPeriodo:\t{periodo} {Utiempo}.\nTensión:     \t{tension} V\t\tFactor de Corrección: {TV}\nCorriente:\t{corriente} Amp\t\tFactor de Corrección: {TI}\nDia inicio:\t{inicio}\tDia fin:\t{final}\nHora inicio:\t{horaInicio}\tHora fin:\t{horaFinal}\n\nFecha	Hora\tU\tU Max\tU Min\tTHD1\tFlicker\tAnormalidad\n\t\tV\tV\tV\t%\t%\t\n'
     name = '1104'
 
-    largoErr = 7
-    largoRegistro = 19
-    variables = 5
-    largosHeader = [36,0]
-    byteSeparador = '\xff'
-    largoHeaderCalibracion = 28
-    unpackHeaderCalibracion = {'string':'HxxxxxxxxxxHxxHHxxxxHxx','indices':[3,0,1,4,2]}
-
-    regex = '(?P<calibr>[^{byteSeparador}]{largoHeaderCalibracion})?{byteSeparador}(?P<header>[^{byteSeparador}]{largoHeader2}(?P<ffSeparated>{byteSeparador})?[^{byteSeparador}]{largoHeader1}(?={byteSeparador}))|(?P<reg>[^{byteSeparador}]{largoRegistro})|(?P<err>(?<={byteSeparador}).{largoErr}(?={byteSeparador}))'.format(byteSeparador=byteSeparador,largoErr='{%d}'%largoErr,largoHeader1='{%d}'%largosHeader[0],largoHeader2='{%d}'%largosHeader[1],largoHeaderCalibracion='{%d}'%largoHeaderCalibracion,largoRegistro='{%d}'%largoRegistro).encode('latin-1')
-    
     maxValues = {'V':286,'Vmax':286,'Vmin':286,'thd':10,'flicker':2}
     
     formatoReg = '%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.3f\t%s\n'
     formatoErr = '%s\t%s\n'
     
-    unpackReg = '>HH 9x HHH'
     unpackHeader = '>8sx2s2s2s2s2s2s3x2s2s2s2s2sxx'
     unpackErr = '>BBBBBBB'
 
     headerMap = dict([reversed(x) for x in enumerate(['filename','periodo','diaInicio','mesInicio','añoInicio','horaInicio','minInicio','diaFin','mesFin','añoFin','horaFin','minFin'])])
     regIndexes = {'flicker':0,'thd':1,'Vmin':2,'Vmax':3,'V':4}
 
-    getTension = lambda self,x: x*0.1342281848192215
     getFlicker = lambda self,flickerRaw,calibrFlicker,V: ((flickerRaw*220*.02)/calibrFlicker)*(100/V)
     getThd = lambda self,V,thdRaw,calibrResiduo,calibrTension,vRaw,calibrThd: (100/V)*(abs(thdRaw-((calibrResiduo/calibrTension)*vRaw)))*18/calibrThd
 
@@ -109,7 +114,7 @@ class serie1104Trifasica:
     largosHeader = [36,16]
     largoHeaderBasura = 5
     largoHeaderCalibracion = 16
-    regex = '(?P<calibr>(?<={byteSeparador})[^{byteSeparador}]{largoHeaderCalibracion})?(?P<basura>[^{byteSeparador}]{largoHeaderBasura})(?P<header>[^{byteSeparador}]{largoHeader2}(?P<ffSeparated>{byteSeparador})?[^{byteSeparador}]{largoHeader1}(?={byteSeparador}))|(?P<reg>[^{byteSeparador}]{largoRegistro})|(?P<err>(?<={byteSeparador}).{largoErr}(?={byteSeparador}))'.format(byteSeparador=byteSeparador,largoErr='{%d}'%largoErr,largoHeader1='{%d}'%largosHeader[0],largoHeader2='{%d}'%largosHeader[1],largoHeaderCalibracion='{%d}'%largoHeaderCalibracion,largoRegistro='{%d}'%largoRegistro,largoHeaderBasura='{%d}'%largoHeaderBasura).encode('latin-1')
+    regex = '(?P<calibr>(?<={byteSeparador}).{largoHeaderCalibracion})?(?P<basura>[^{byteSeparador}]{largoHeaderBasura})(?P<header>[^{byteSeparador}]{largoHeader2}(?P<ffSeparated>{byteSeparador})?[^{byteSeparador}]{largoHeader1}(?={byteSeparador}))|(?P<reg>[^{byteSeparador}]{largoRegistro})|(?P<err>(?<={byteSeparador}).{largoErr}(?={byteSeparador}))'.format(byteSeparador=byteSeparador,largoErr='{%d}'%largoErr,largoHeader1='{%d}'%largosHeader[0],largoHeader2='{%d}'%largosHeader[1],largoHeaderCalibracion='{%d}'%largoHeaderCalibracion,largoRegistro='{%d}'%largoRegistro,largoHeaderBasura='{%d}'%largoHeaderBasura).encode('latin-1')
     variables = 21
     
     maxValues = {'V':286,'Vmax':286,'Vmin':286,'thd':10,'flicker':2}
