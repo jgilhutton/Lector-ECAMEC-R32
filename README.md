@@ -18,6 +18,30 @@ Iré modificando y ampliando el programa a medida que vaya descubriendo cosas.
 - 1605 Monofásica
 - 1605 Trifásica
 
+# Modo de uso:
+
+``    
+     Modo de uso:    python r32.py [-d Directorio]|[-f Archivo] [Opcionales]
+    -d  Directorio con archivos .R32
+    -f  Archivo .R32
+    Opcionales:
+        -o  Directorio donde se guardan los archivos generados
+            Valor por defecto: Directorio de los archivos R32
+        -tv Factor de tensión   Valor por defecto: 1
+        -ti Factor de corriente Valor por defecto: 1
+        -v  Muestra más información en la pantalla durante el
+            procesamiento. Valor por defect: Falso
+        -vv Igual que -v pero con información de depuración
+
+    Los archivos pueden tener cualquier extensión.
+    Lo que importa es la información que está dentro de ellos.
+    Un archivo válido puede ser MEDICION.TXT, si se desea
+
+    Ejemplos:
+    python r32.py -d "C:\Mediciones" -o "C:\Mediciones Procesadas"
+    python r32.py -f MEDICION.R32 -tv 35 -ti 15.5
+``
+
 # Requerimientos:
 
 - Python 3. Python es un lenguaje de programación interpretado, de código libre, usado para la creación de este proyecto. Si usan Windows XP, deben obtener una versión de Python menor o igual a la 3.4. Cualquier duda, en www.python.org pueden consultar.
