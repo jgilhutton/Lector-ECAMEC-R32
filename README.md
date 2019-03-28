@@ -20,8 +20,7 @@ Iré modificando y ampliando el programa a medida que vaya descubriendo cosas.
 
 # Modo de uso:
 
-``    
-     Modo de uso:    python r32.py [-d Directorio]|[-f Archivo] [Opcionales]
+``     Modo de uso:    python r32.py [-d Directorio]|[-f Archivo] [Opcionales]
     -d  Directorio con archivos .R32
     -f  Archivo .R32
     Opcionales:
@@ -32,6 +31,7 @@ Iré modificando y ampliando el programa a medida que vaya descubriendo cosas.
         -v  Muestra más información en la pantalla durante el
             procesamiento. Valor por defect: Falso
         -vv Igual que -v pero con información de depuración
+
     Los archivos pueden tener cualquier extensión.
     Lo que importa es la información que está dentro de ellos.
     Un archivo válido puede ser MEDICION.TXT, si se desea
