@@ -20,7 +20,8 @@ Iré modificando y ampliando el programa a medida que vaya descubriendo cosas.
 
 # Modo de uso:
 
-``     Modo de uso:    python r32.py [-d Directorio]|[-f Archivo] [Opcionales]
+```
+     Modo de uso:    python r32.py [-d Directorio]|[-f Archivo] [Opcionales]
     -d  Directorio con archivos .R32
     -f  Archivo .R32
     Opcionales:
@@ -39,7 +40,7 @@ Iré modificando y ampliando el programa a medida que vaya descubriendo cosas.
     Ejemplos:
     python r32.py -d "C:\Mediciones" -o "C:\Mediciones Procesadas"
     python r32.py -f MEDICION.R32 -tv 35 -ti 15.5
-``
+```
 
 # Requerimientos:
 
