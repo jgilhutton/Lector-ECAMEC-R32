@@ -69,6 +69,7 @@ for file in files:
         medicion = Medicion(file,folder,oFolder,TV,TI,verbose,debug)
         if medicion.serie:
             # try:
+                print(file)
                 medicion.analizarR32()
             # except Exception as e:
             #     print('ERROR:',e,'en',file)
