@@ -40,23 +40,24 @@ class Medicion:
             return False
 
     def getSerie(self):
-        if search(b'(?s)^\xff.{36}\xff.{37}\xff.\xff',self.r32):
-            return serieViejaTrifasica()
-        elif search(b'(?s)^\xff.{36}\xff.{10}\xff',self.r32):
+        if search(b'(?s)^\xff.{36}\xff.{10}\xff',self.r32):
             return serieViejaMonofasica()
-        elif search(b'(?s)^\xff.{36}\xff.{28}\xff',self.r32):
-            if search(b'(?s)\xff.{15}\xff',self.r32):
-                serie = serie1104Monofasica(True)
-                return serie
-            elif search(b'(?s)\xff.{19}\xff',self.r32):
-                serie = serie1104Monofasica(False)
-                return serie
-        elif search(b'(?s)^\xff.{36}\xff.{37}\xff',self.r32):
-            return serie1104Trifasica()
-        elif search(b'(?s)^\xff.{36}\xff.{54}\xff',self.r32):
-            return serie1605Monofasica()
-        elif search(b'(?s)^.{68}\xff.{21}\xff',self.r32):
-            return serie1612Trifasica()
+        # elif search(b'(?s)^\xff.{36}\xff.{28}\xff',self.r32):
+        #     if search(b'(?s)\xff.{15}\xff',self.r32):
+        #         serie = serie1104Monofasica(True)
+        #         return serie
+        #     elif search(b'(?s)\xff.{19}\xff',self.r32):
+        #         serie = serie1104Monofasica(False)
+        #         return serie
+        # elif search(b'(?s)^\xff.{36}\xff.{37}\xff',self.r32):
+        #     if search(b'(?s)\xff.{50}\xff',self.r32):
+        #         return serieViejaTrifasica()
+        #     elif search(b'(?s)\xff.{54}\xff',self.r32):
+        #         return serie1104Trifasica()
+        # elif search(b'(?s)^\xff.{36}\xff.{54}\xff',self.r32):
+        #     return serie1605Monofasica()
+        # elif search(b'(?s)^.{68}\xff.{21}\xff',self.r32):
+        #     return serie1612Trifasica()
         else:
             print('Serie no reconocida',self.fileName)
             return None
@@ -73,6 +74,7 @@ class Medicion:
         timeFinReg = None
         ERR = False
         padded = True
+        agregarRegistro = False
 
         def pad(timeInicioReg,lastTime,timeInicioCorte,timeFinCorte):
             while True:
@@ -89,8 +91,10 @@ class Medicion:
 
         if self.serie1612:
             self.analizar1612()
+            print('1612')
             return
         for dataDict in feeder(self.r32,serie.regex):
+            # input(dataDict)
             if dataDict['err']:
                 self.chunks.append({'tipo':'err','data':dataDict['err'][::-1]})
             elif dataDict['reg']:
@@ -114,8 +118,12 @@ class Medicion:
                 lastTime = self.inicio
                 for chunk in self.chunks:
                     if chunk['tipo'] == 'err':
+                        # if agregarRegistro:
+                        #     regProcesado,_ = self.procesarReg(None,padding=True)
+                        #     self.registrosProcesados.append({'timeFinReg':timeFinReg,'regProcesado':regProcesado,'Anomalia':True})
+                        #     agregarRegistro = False
                         dataErr = self.procesarErr(chunk['data'])
-                        if dataErr['codigo'] in [84,83]: continue
+                        if dataErr['codigo'] in [84,83,-1]: continue
                         elif dataErr['codigo'] == 85: # Cambio de hora
                             self.inicio = dataErr['timeStamp']
                             lastTime = self.inicio
@@ -133,6 +141,7 @@ class Medicion:
                             if not inRange(mktime(timeFinCorte),(mktime(timeInicioReg),mktime(timeFinReg))):
                                 timeInicioReg,timeFinReg = pad(timeInicioReg,lastTime,timeInicioCorte,timeFinCorte)
                                 lastTime = timeInicioReg
+                                agregarRegistro = True
                                 padded = True
     
                     elif chunk['tipo'] == 'reg' and not ERR:
@@ -142,6 +151,7 @@ class Medicion:
                         elif not padded:
                             timeFinReg = self.stampGen.send(None)
                         padded = False
+                        agregarRegistro = False
                         timeInicioReg = self.inicio if not timeInicioReg else lastTime
                         lastTime = timeFinReg 
 
@@ -218,7 +228,29 @@ class Medicion:
         err = [str(hex(i)) for i in err]
         err = [search('(?<=x).+',x).group().zfill(2) for x in err]
 
-        timeStamp = strptime(''.join(err[1:]),'%S%M%H%d%m%y')
+        formatErr = ''.join(err[1:])
+        try:
+            timeStamp = strptime(formatErr,'%S%M%H%d%m%y')
+        except ValueError:
+            badByte = search('\d\D',formatErr)
+            if badByte:
+                span = badByte.span()
+                byte = badByte.group()
+                decByte =int(byte,16)
+                if (span[0] in [0,2] and decByte < 60) or\
+                    (span[0] == 4 and decByte < 24) or \
+                    (span[0] == 6 and decByte <= 31) or \
+                    (span[0] == 8 and decByte <= 12) or \
+                    (span[0] == 10 and decByte <= 99):
+                    formatErr = formatErr.replace(badByte,str(int(decByte,16)).zfill(2))
+            try: timeStamp = strptime(formatErr,'%S%M%H%d%m%y')
+            except ValueError:
+                formatErr = formatErr.replace(byte,'00')
+                timeStamp = strptime(formatErr,'%S%M%H%d%m%y')
+                codigo = -1
+                self.errsProcesados.append((timeStamp,codigo))
+                return {'codigo':-1,'isCorte':False,'timeStamp':None}
+
         codigo = int(err[0])
         self.errsProcesados.append((timeStamp,codigo))
 
@@ -266,27 +298,27 @@ class Medicion:
                 VRmin =self.serie.getTension(dataRaw['VRmin'])
                 IR = self.serie.getCorriente(dataRaw['IR'])
                 energiaR = self.serie.getEnergia(dataRaw['ERb1'],dataRaw['ERb2'],dataRaw['ERb3'])
-                cosPhiR = self.serie.getCosPhi(energiaR,IR,VR,self.periodo) if (IR and VR) else 0.0
+                cosPhiR = self.serie.getCosPhi(energiaR,IR,VR,self.periodo)# if (IR and VR) else 0.0
 
                 VS = self.serie.getTension(dataRaw['VS'])
                 VSmax =self.serie.getTension(dataRaw['VSmax'])
                 VSmin =self.serie.getTension(dataRaw['VSmin'])
                 IS = self.serie.getCorriente(dataRaw['IS'])
                 energiaS = self.serie.getEnergia(dataRaw['ESb1'],dataRaw['ESb2'],dataRaw['ESb3'])
-                cosPhiS = self.serie.getCosPhi(energiaS,IS,VS,self.periodo) if (IS and VS) else 0.0
+                cosPhiS = self.serie.getCosPhi(energiaS,IS,VS,self.periodo)# if (IS and VS) else 0.0
 
                 VT = self.serie.getTension(dataRaw['VT'])
                 VTmax =self.serie.getTension(dataRaw['VSmax'])
                 VTmin =self.serie.getTension(dataRaw['VSmin'])
                 IT = self.serie.getCorriente(dataRaw['IT'])
                 energiaT = self.serie.getEnergia(dataRaw['ETb1'],dataRaw['ETb2'],dataRaw['ETb3'])
-                cosPhiT = self.serie.getCosPhi(energiaT,IT,VT,self.periodo) if (IT and VT) else 0.0
+                cosPhiT = self.serie.getCosPhi(energiaT,IT,VT,self.periodo)# if (IT and VT) else 0.0
 
-                thdR = self.serie.getThd(VR,dataRaw['thdR'],self.calibrResiduo,self.calibrTension,self.calibrThd) if (IR and VR) else 0.0
-                thdS = self.serie.getThd(VS,dataRaw['thdS'],self.calibrResiduo,self.calibrTension,self.calibrThd) if (IS and VS) else 0.0
-                thdT = self.serie.getThd(VT,dataRaw['thdT'],self.calibrResiduo,self.calibrTension,self.calibrThd) if (IT and VT) else 0.0
+                thdR = self.serie.getThd(VR,dataRaw['thdR'],self.calibrResiduo,self.calibrTension,self.calibrThd)# if (IR and VR) else 0.0
+                thdS = self.serie.getThd(VS,dataRaw['thdS'],self.calibrResiduo,self.calibrTension,self.calibrThd)# if (IS and VS) else 0.0
+                thdT = self.serie.getThd(VT,dataRaw['thdT'],self.calibrResiduo,self.calibrTension,self.calibrThd)# if (IT and VT) else 0.0
                 thd=thdR
-                flicker = self.serie.getFlicker(dataRaw['flicker'],self.calibrFlicker,VR) if (IR and VR) else 0.0
+                flicker = self.serie.getFlicker(dataRaw['flicker'],self.calibrFlicker,VR)# if (IR and VR) else 0.0
                 if thd>10: thd = 10.0
                 if flicker>2: flicker = 2.0
 
@@ -298,12 +330,12 @@ class Medicion:
                 return (VR,VRmax,VRmin,IR,cosPhiR,energiaR,VS,VSmax,VSmin,IS,cosPhiS,energiaS,VT,VTmax,VTmin,IT,cosPhiT,energiaT,thd,flicker,totalEnergia,),data
 
         else:
-            V = self.serie.getTension(dataRaw['V'])
-            Vmax = self.serie.getTension(dataRaw['Vmax'])
-            Vmin = self.serie.getTension(dataRaw['Vmin'])
+            V = self.serie.getTension(dataRaw['V'],self.calibrTension,self.TV)
+            Vmax = self.serie.getTension(dataRaw['Vmax'],self.calibrTension,self.TV)
+            Vmin = self.serie.getTension(dataRaw['Vmin'],self.calibrTension,self.TV)
             if self.serie.name in ['1104','Vieja']:
-                thd = self.serie.getThd(V,dataRaw['thd'],self.calibrResiduo,self.calibrTension,dataRaw['V'],self.calibrThd) if V else 0.0
-                flicker = self.serie.getFlicker(dataRaw['flicker'],self.calibrFlicker,V) if V else 0.0
+                thd = self.serie.getThd(V,dataRaw['thd'],self.calibrResiduo,self.calibrTension,dataRaw['V'],self.calibrThd, self.TV)# if V else 0.0
+                flicker = self.serie.getFlicker(dataRaw['flicker'],self.calibrFlicker,V,self.TV)# if V else 0.0
             elif self.serie.name in ['1605']:
                 thd = self.serie.getThd(dataRaw['thd'])
                 flicker = self.serie.getFlicker(dataRaw['flicker'])

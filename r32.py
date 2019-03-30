@@ -1,8 +1,9 @@
 from Medicion import Medicion
 from sys import argv
 from os import walk
+from os.path import isdir
 
-def printHelp(error = None):
+def printHelp(*args):
     help = """
     Modo de uso:    python r32.py [-d Directorio]|[-f Archivo] [Opcionales]
     -d  Directorio con archivos .R32
@@ -25,7 +26,7 @@ def printHelp(error = None):
     python r32.py -f MEDICION.R32 -tv 35 -ti 15.5
 
     """
-    if error:print('\nERROR: ',error)
+    if args:print('\nERROR: ',' '.join(args))
     print(help)
     exit()
 
@@ -35,9 +36,10 @@ if '-d' in argv and '-f' in argv:
     printHelp('-d y -f no pueden estar juntos')
 if '-d' in argv:
     folder = argv[argv.index('-d')+1]
+    if not isdir(folder): printHelp('No existe el directorio',folder)
 elif '-f' in argv:
     file = argv[argv.index('-f')+1]
-else: printHelp('Debe proporcionar los argumentos necesarios')
+else: printHelp('Debe proporcionar los argumentos necesarios.')
 
 if file:
     folder = list(filter(lambda x:x,['\\'.join(file.split('\\')[:-1]),'/'.join(file.split('/')[:-1])]))
@@ -46,9 +48,11 @@ if file:
     files = [file.split('\\')[-1].split('/')[-1]]
 else:
     for root, directory, file in walk(folder):
-        files = [x for x in file if x.lower().endswith('.r32')]
+        if root == folder:
+            files = [x for x in file if x.lower().endswith('.r32')]
+            break
     if not files:
-        printHelp('\nNo se encontraron archivos en el directorio.\n')
+        printHelp('No se encontraron archivos en el directorio.')
 
 
 oFolder = argv[argv.index('-o')+1] if '-o' in argv else folder
@@ -61,13 +65,13 @@ debug = True if '-vv' in argv else False
 if debug: verbose = True
         
 for file in files:
-    try:
+    # try:
         medicion = Medicion(file,folder,oFolder,TV,TI,verbose,debug)
         if medicion.serie:
-            try:
+            # try:
                 medicion.analizarR32()
-            except Exception as e:
-                print('ERROR:',e,'en',file)
-    except TypeError as e:
-        print(e)
-        continue
+            # except Exception as e:
+            #     print('ERROR:',e,'en',file)
+    # except TypeError as e:
+    #     print(e)
+    #     continue
