@@ -18,6 +18,7 @@ Iré modificando y ampliando el programa a medida que vaya descubriendo cosas.
 - 0x9B
 - 0x21
 - 0x01
+
 Las series corresponden al noveno (9°) byte del header de cada medición. Generalmente, los headers se encuentran al principio de cada archivo R32 precedidos por un byte \xff, en ese caso, el byte de la serie sería el décimo (10°) byte del archivo .R32
 
 # Modo de uso:
