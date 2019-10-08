@@ -1,5 +1,5 @@
-from struct import unpack
 from time import strftime, strptime, mktime
+from struct import unpack
 
 errCodes = {0x84: 'Descarga de datos',
             0x83: 'Cambio de Hora (Hora Anterior)',

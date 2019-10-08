@@ -1,7 +1,8 @@
 from os import walk
 from os.path import isdir, isfile
-from re import finditer, findall, sub
+from re import finditer, findall
 from time import localtime
+
 import Series
 from Registros import *
 
@@ -72,8 +73,8 @@ class Ecamec:
                 continue
             if hasattr(calibraciones, 'fileName'):
                 header.fileName = calibraciones.fileName.strip(b'\x00').decode('utf-8')
-            datGenerator = self.genDat()
-            errGenerator = self.genErr()
+            datGenerator = self.genDat(header.fileName)
+            errGenerator = self.genErr(header.fileName)
             tStampGenerator = self.genTimeStamp(header.timeStampStart, header.periodo)
             datGenerator.send(None)
             errGenerator.send(None)
@@ -117,8 +118,19 @@ class Ecamec:
                     registroPrevio = registro
                     registroBuffer = []
 
-    def genDat(self):
-        self.datName = sub('(?i)r32', 'dat', self.r32.fileName)
+    def checkFileName(self, fileName, ext):
+        if not isfile(''.join((self.path, '/', fileName, ext))): return fileName + ext
+        ext = ext[:-1] + '%d'
+        c = 0
+        while True:
+            if isfile(''.join((self.path, '/', fileName, ext % c))):
+                c += 1
+                continue
+            break
+        return fileName + ext % c
+
+    def genDat(self, fileName):
+        self.datName = self.checkFileName(fileName, '.dat')
         outputFile = open(self.outputDirectory + '/' + self.datName, 'w', encoding='utf-8')
         header = (yield)
         headerStr = self.r32.tipoEquipo.headerFormatString.format(header.fileName, '-',
@@ -136,8 +148,8 @@ class Ecamec:
             regStr = regStr.replace('.', ',')
             outputFile.write(regStr)
 
-    def genErr(self):
-        self.errName = sub('(?i)r32', 'err', self.r32.fileName)
+    def genErr(self, fileName):
+        self.errName = self.checkFileName(fileName, '.err')
         outputFile = open(self.outputDirectory + '/' + self.errName, 'w', encoding='utf-8')
         while True:
             reg = (yield)
@@ -201,6 +213,6 @@ class Ecamec:
             yield match.groupdict()
 
 
-ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Mediciones Nuevas/03 de Agosto/080388O1.R32')
+ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/R32s')
 for archivo in ecamec.archivos:
     ecamec.procesarR32(archivo)
