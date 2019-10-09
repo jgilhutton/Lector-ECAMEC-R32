@@ -1,10 +1,10 @@
 from os import walk
-from os.path import isdir, isfile
-from re import finditer, findall
-from time import localtime
+from os.path import isdir
+from re import findall
 
 import Series
 from Registros import *
+from Tools import *
 
 mapaEquipos = {0xB1: Series.Serie04,
                0xDB: Series.Serie12,
@@ -75,62 +75,44 @@ class Ecamec:
                 header.fileName = calibraciones.fileName.strip(b'\x00').decode('utf-8')
             datGenerator = self.genDat(header.fileName)
             errGenerator = self.genErr(header.fileName)
-            tStampGenerator = self.genTimeStamp(header.timeStampStart, header.periodo)
+            tStampGenerator = genTimeStamp(header.timeStampStart, header.periodo)
             datGenerator.send(None)
             errGenerator.send(None)
             datGenerator.send(header)
-            timeStampInicioCorte, timeStampFinCorte = None, None
-            registroBuffer = []
-            corteEnProgreso = None
-            registroPrevio = None
+            timeStampPrevia, timeStampInicioCorte, timeStampFinCorte = 0, None, None
+            corteEnProgreso, justFinished, justStarted = None, None, None
             for registro in medicion:
                 if type(registro) == RegistroErr:
                     errGenerator.send(registro)
                     if registro.codigo == 0x82:
                         corteEnProgreso = True
+                        justStarted = True
                         timeStampInicioCorte = registro.timeStampSegundos
-                        timeStampFinCorte = timeStampInicioCorte  # Temporal
+                        timeStampFinCorte = timeStampInicioCorte
                     elif registro.codigo == 0x81:
                         corteEnProgreso = False
+                        justFinished = True
                         timeStampFinCorte = registro.timeStampSegundos
                 elif type(registro) == RegistroDat:
-                    registro.setTimeStamp(tStampGenerator.send(None))
                     registro = self.r32.tipoEquipo.analizarRegistroDat(self.r32.tipoEquipo, registro, calibraciones,
                                                                        self.TV, self.TI, header.periodo)
-                    if corteEnProgreso:
-                        if registroPrevio and timeStampInicioCorte < registroPrevio.timeStampSegundos:
-                            registroPrevio.anormalidad = 'A'
-                            registroBuffer.append(registroPrevio)
-                        if timeStampInicioCorte < registro.timeStampSegundos:
+                    registro.setTimeStamp(tStampGenerator.send(None))
+                    if justStarted and (timeStampPrevia < timeStampInicioCorte < registro.timeStampSegundos):
+                        registro.anormalidad = 'A'
+                        justStarted = False
+                    elif justFinished and (timeStampPrevia < timeStampFinCorte < registro.timeStampSegundos):
+                        registro.anormalidad = 'A'
+                        justFinished = False
+                    elif justFinished:
+                        while timeStampInicioCorte < timeStampPrevia < registro.timeStampSegundos < timeStampFinCorte:
+                            registro.setTimeStamp(tStampGenerator.send(None))
                             registro.anormalidad = 'A'
-                            registroBuffer.append(registro)
-                    elif not corteEnProgreso:
-                        if registro.timeStampSegundos < timeStampFinCorte < registro.timeStampSegundos + header.periodo + 60:
-                            registro.anormalidad = 'A'
-                            registroBuffer.append(registro)
-                        else:
-                            while registro.timeStampSegundos < timeStampFinCorte:
-                                registro.setTimeStamp(tStampGenerator.send(None))
-                                registro.anormalidad = 'A'
-                            registroBuffer.append(registro)
-                    for reg in registroBuffer:
-                        datGenerator.send(reg)
-                    registroPrevio = registro
-                    registroBuffer = []
 
-    def checkFileName(self, fileName, ext):
-        if not isfile(''.join((self.path, '/', fileName, ext))): return fileName + ext
-        ext = ext[:-1] + '%d'
-        c = 0
-        while True:
-            if isfile(''.join((self.path, '/', fileName, ext % c))):
-                c += 1
-                continue
-            break
-        return fileName + ext % c
+                    timeStampPrevia = registro.timeStampSegundos
+                    datGenerator.send(registro)
 
     def genDat(self, fileName):
-        self.datName = self.checkFileName(fileName, '.dat')
+        self.datName = checkFileName(fileName, '.dat')
         outputFile = open(self.outputDirectory + '/' + self.datName, 'w', encoding='utf-8')
         header = (yield)
         headerStr = self.r32.tipoEquipo.headerFormatString.format(header.fileName, '-',
@@ -143,13 +125,13 @@ class Ecamec:
         while True:
             reg = (yield)
             arguments = (reg.fecha, reg.hora) + tuple((getattr(reg, x) for x in self.r32.tipoEquipo.regDatMap)) + (
-            reg.anormalidad,)
+                reg.anormalidad,)
             regStr = self.r32.tipoEquipo.regFormatString % arguments
             regStr = regStr.replace('.', ',')
             outputFile.write(regStr)
 
     def genErr(self, fileName):
-        self.errName = self.checkFileName(fileName, '.err')
+        self.errName = checkFileName(fileName, '.err')
         outputFile = open(self.outputDirectory + '/' + self.errName, 'w', encoding='utf-8')
         while True:
             reg = (yield)
@@ -164,7 +146,7 @@ class Ecamec:
             reverse = self.r32.tipoEquipo.reverse
         except:
             return
-        for chunkDict in self.feeder(self.r32.tipoEquipo.regex, self.r32.rawData, reverse=reverse):
+        for chunkDict in feeder(self.r32.tipoEquipo.regex, self.r32.rawData, reverse=reverse):
             for key in filter(lambda x: chunkDict[x], chunkDict):
                 if key == 'calibr':
                     unpackStr = self.r32.tipoEquipo.unpackHeaderCalibracion
@@ -200,19 +182,7 @@ class Ecamec:
                     reg = RegistroDat(unpackStr, data, mapa)
                     registros.append(reg)
 
-    def genTimeStamp(self, startTime, periodo):
-        cantidadPeriodos, _ = divmod(mktime(startTime), (periodo * 60))
-        stampSeconds = cantidadPeriodos * (periodo * 60)
-        while True:
-            stampSeconds += (periodo * 60)
-            yield localtime(stampSeconds)
 
-    def feeder(self, regex, data, reverse=False):
-        if reverse: data = data[::-1]
-        for match in finditer(regex, data):
-            yield match.groupdict()
-
-
-ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/R32s')
+ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/03 de Agosto/030388O1.R32')
 for archivo in ecamec.archivos:
     ecamec.procesarR32(archivo)
