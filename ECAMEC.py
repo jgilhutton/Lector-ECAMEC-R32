@@ -1,7 +1,11 @@
+# BuiltIns
 from os import walk
 from os.path import isdir
 from re import findall
+from types import SimpleNamespace
+from collections import deque
 
+# Custom
 import Series
 from Registros import *
 from Tools import *
@@ -46,8 +50,7 @@ class R32:
 
 class Ecamec:
     def __init__(self, *args, **kwargs):
-        for arg in kwargs:
-            setattr(self, arg, kwargs[arg])
+        self.__dict__.update(kwargs)
         if not hasattr(self, 'TV'): self.TV = 1.0
         if not hasattr(self, 'TI'): self.TI = 1.0
         for arg in args:
@@ -73,42 +76,69 @@ class Ecamec:
                 continue
             if hasattr(calibraciones, 'fileName'):
                 header.fileName = calibraciones.fileName.strip(b'\x00').decode('utf-8')
+
             datGenerator = self.genDat(header.fileName)
             errGenerator = self.genErr(header.fileName)
             tStampGenerator = genTimeStamp(header.timeStampStart, header.periodo)
             datGenerator.send(None)
             errGenerator.send(None)
             datGenerator.send(header)
-            timeStampPrevia, timeStampInicioCorte, timeStampFinCorte = 0, None, None
-            corteEnProgreso, justFinished, justStarted = None, None, None
+            procesar = lambda r: self.r32.tipoEquipo.analizarRegistroDat(self.r32.tipoEquipo, r, calibraciones,
+                                                                         self.TV, self.TI, header.periodo)
+            corte = None
+            timeStampPrevia = 0
+
             for registro in medicion:
                 if type(registro) == RegistroErr:
                     errGenerator.send(registro)
                     if registro.codigo == 0x82:
-                        corteEnProgreso = True
-                        justStarted = True
                         timeStampInicioCorte = registro.timeStampSegundos
-                        timeStampFinCorte = timeStampInicioCorte
+                        if timeStampInicioCorte < mktime(header.timeStampStart):
+                            timeStampInicioCorte = mktime(header.timeStampStart)
+                        cd = {'inicio': timeStampInicioCorte,'enProgreso':True,'justStarted':True,'justFinished':None}
+                        corte = SimpleNamespace(**cd)
                     elif registro.codigo == 0x81:
-                        corteEnProgreso = False
-                        justFinished = True
                         timeStampFinCorte = registro.timeStampSegundos
+                        if timeStampFinCorte < mktime(header.timeStampStart):
+                            timeStampFinCorte = mktime(header.timeStampStart)
+                        corte.fin = timeStampFinCorte
+                        corte.enProgreso = False
+                        corte.justFinished = True
                 elif type(registro) == RegistroDat:
-                    registro = self.r32.tipoEquipo.analizarRegistroDat(self.r32.tipoEquipo, registro, calibraciones,
-                                                                       self.TV, self.TI, header.periodo)
-                    registro.setTimeStamp(tStampGenerator.send(None))
-                    if justStarted and (timeStampPrevia < timeStampInicioCorte < registro.timeStampSegundos):
+                    if timeStampPrevia < mktime(header.timeStampStart):
                         registro.anormalidad = 'A'
-                        justStarted = False
-                    elif justFinished and (timeStampPrevia < timeStampFinCorte < registro.timeStampSegundos):
-                        registro.anormalidad = 'A'
-                        justFinished = False
-                    elif justFinished:
-                        while timeStampInicioCorte < timeStampPrevia < registro.timeStampSegundos < timeStampFinCorte:
-                            registro.setTimeStamp(tStampGenerator.send(None))
-                            registro.anormalidad = 'A'
+                    elif not corte.enProgreso:
+                        if not corte.justFinished:
+                            pass
+                        elif timeStampPrevia < corte.fin and (corte.fin-timeStampPrevia) > header.periodo*60:
+                            while (corte.fin-timeStampPrevia) > header.periodo*60:
+                                tStamp = tStampGenerator.send(None)
+                                timeStampPrevia = mktime(tStamp)
+                        if timeStampPrevia < corte.fin:
+                            corte.justFinished = False
+                            registro.anormalidad = 'B'
+                    elif corte.enProgreso:
+                        if corte.justStarted:
+                            corte.justStarted = False
+                            if timeStampPrevia < corte.inicio:
+                                if (corte.inicio - timeStampPrevia) < header.periodo * 60:
+                                    registro.anormalidad = 'C'
+                                elif (corte.inicio - timeStampPrevia) > header.periodo * 60:
+                                    pass
+                            elif timeStampPrevia > corte.inicio:
+                                if (timeStampPrevia - corte.inicio) < header.periodo * 60:
+                                    timeStampPrevia = mktime(tStampGenerator.send(None))
+                                    continue
+                                else:
+                                    registro.anormalidad = 'E'
+                        elif not corte.justStarted:
+                            timeStampPrevia = mktime(tStampGenerator.send(None))
+                            continue
 
-                    timeStampPrevia = registro.timeStampSegundos
+                    registro = procesar(registro)
+                    tStamp = tStampGenerator.send(None)
+                    registro.setTimeStamp(tStamp)
+                    timeStampPrevia = registro.timeStampSecs
                     datGenerator.send(registro)
 
     def genDat(self, fileName):
@@ -183,6 +213,6 @@ class Ecamec:
                     registros.append(reg)
 
 
-ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/03 de Agosto/030388O1.R32')
+ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/03 de Agosto/020388O1.R32')
 for archivo in ecamec.archivos:
     ecamec.procesarR32(archivo)

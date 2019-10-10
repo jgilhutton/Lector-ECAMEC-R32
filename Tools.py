@@ -4,8 +4,7 @@ from os.path import isfile
 
 
 def genTimeStamp(startTime, periodo):
-    cantidadPeriodos, _ = divmod(mktime(startTime), (periodo * 60))
-    stampSeconds = cantidadPeriodos * (periodo * 60)
+    stampSeconds = mktime(startTime) - mktime(startTime) % (periodo * 60)
     while True:
         stampSeconds += (periodo * 60)
         yield localtime(stampSeconds)
@@ -15,6 +14,10 @@ def feeder(regex, data, reverse=False):
     if reverse: data = data[::-1]
     for match in finditer(regex, data):
         yield match.groupdict()
+
+
+def inRange(value,boundaries):
+    return boundaries[0] < value < boundaries[1]
 
 
 def checkFileName(fileName, ext):

@@ -56,7 +56,7 @@ class RegistroDat(Registro):
     anormalidad = ''
 
     def setTimeStamp(self, timeStampTuple):
-        self.timeStamp = timeStampTuple
-        self.timeStampSegundos = mktime(timeStampTuple)
+        self.timeStampTuple = timeStampTuple
+        self.timeStampSecs = mktime(timeStampTuple)
         self.fecha = strftime('%d/%m/%y', timeStampTuple)
         self.hora = strftime('%H:%M', timeStampTuple)
