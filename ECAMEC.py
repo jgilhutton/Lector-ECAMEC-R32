@@ -77,20 +77,16 @@ class Ecamec:
             if hasattr(calibraciones, 'fileName'):
                 header.fileName = calibraciones.fileName.strip(b'\x00').decode('utf-8')
 
-            datGenerator = self.genDat(header.fileName)
-            errGenerator = self.genErr(header.fileName)
             tStampGenerator = genTimeStamp(header.timeStampStart, header.periodo)
-            datGenerator.send(None)
-            errGenerator.send(None)
-            datGenerator.send(header)
             procesar = lambda r: self.r32.tipoEquipo.analizarRegistroDat(self.r32.tipoEquipo, r, calibraciones,
                                                                          self.TV, self.TI, header.periodo)
             corte = None
             timeStampPrevia = 0
+            regCount = 0
+            regBatch,errBatch = [],[]
 
             for registro in medicion:
                 if type(registro) == RegistroErr:
-                    errGenerator.send(registro)
                     if registro.codigo == 0x82:
                         timeStampInicioCorte = registro.timeStampSegundos
                         if timeStampInicioCorte < mktime(header.timeStampStart):
@@ -104,6 +100,7 @@ class Ecamec:
                         corte.fin = timeStampFinCorte
                         corte.enProgreso = False
                         corte.justFinished = True
+                    errBatch.append(registro)
                 elif type(registro) == RegistroDat:
                     if timeStampPrevia < mktime(header.timeStampStart):
                         registro.anormalidad = 'A'
@@ -123,14 +120,17 @@ class Ecamec:
                             if timeStampPrevia < corte.inicio:
                                 if (corte.inicio - timeStampPrevia) < header.periodo * 60:
                                     registro.anormalidad = 'C'
+                                    continue
                                 elif (corte.inicio - timeStampPrevia) > header.periodo * 60:
-                                    pass
-                            elif timeStampPrevia > corte.inicio:
-                                if (timeStampPrevia - corte.inicio) < header.periodo * 60:
                                     timeStampPrevia = mktime(tStampGenerator.send(None))
                                     continue
-                                else:
-                                    registro.anormalidad = 'E'
+                            elif timeStampPrevia > corte.inicio:
+                                if (timeStampPrevia - corte.inicio) < header.periodo * 60:
+                                    regBatch[-1].anormalidad = 'E'
+                                    continue
+                                elif (timeStampPrevia - corte.inicio) > header.periodo * 60:
+                                    regBatch[-1].anormalidad = 'F'
+                                    continue
                         elif not corte.justStarted:
                             timeStampPrevia = mktime(tStampGenerator.send(None))
                             continue
@@ -139,7 +139,16 @@ class Ecamec:
                     tStamp = tStampGenerator.send(None)
                     registro.setTimeStamp(tStamp)
                     timeStampPrevia = registro.timeStampSecs
-                    datGenerator.send(registro)
+                    regBatch.append(registro)
+                    regCount += 1
+
+            datGenerator = self.genDat(header.fileName)
+            errGenerator = self.genErr(header.fileName)
+            datGenerator.send(None)
+            errGenerator.send(None)
+            datGenerator.send(header)
+            for err in errBatch:  errGenerator.send(err)
+            for reg in regBatch:  datGenerator.send(reg)
 
     def genDat(self, fileName):
         self.datName = checkFileName(fileName, '.dat')
@@ -213,6 +222,6 @@ class Ecamec:
                     registros.append(reg)
 
 
-ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/03 de Agosto/020388O1.R32')
+ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/03 de Agosto/030388O1.R32')
 for archivo in ecamec.archivos:
     ecamec.procesarR32(archivo)
