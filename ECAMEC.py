@@ -3,7 +3,6 @@ from os import walk
 from os.path import isdir
 from re import findall
 from types import SimpleNamespace
-from collections import deque
 
 # Custom
 import Series
@@ -77,16 +76,20 @@ class Ecamec:
             if hasattr(calibraciones, 'fileName'):
                 header.fileName = calibraciones.fileName.strip(b'\x00').decode('utf-8')
 
+            datGenerator = self.genDat(header.fileName)
+            errGenerator = self.genErr(header.fileName)
+            datGenerator.send(None)
+            errGenerator.send(None)
+            datGenerator.send(header)
             tStampGenerator = genTimeStamp(header.timeStampStart, header.periodo)
             procesar = lambda r: self.r32.tipoEquipo.analizarRegistroDat(self.r32.tipoEquipo, r, calibraciones,
                                                                          self.TV, self.TI, header.periodo)
             corte = None
-            timeStampPrevia = 0
-            regCount = 0
-            regBatch,errBatch = [],[]
+            holdReg = None
 
             for registro in medicion:
                 if type(registro) == RegistroErr:
+                    errGenerator.send(registro)
                     if registro.codigo == 0x82:
                         timeStampInicioCorte = registro.timeStampSegundos
                         if timeStampInicioCorte < mktime(header.timeStampStart):
@@ -99,56 +102,44 @@ class Ecamec:
                             timeStampFinCorte = mktime(header.timeStampStart)
                         corte.fin = timeStampFinCorte
                         corte.enProgreso = False
+                        corte.justStarted = False
                         corte.justFinished = True
-                    errBatch.append(registro)
                 elif type(registro) == RegistroDat:
-                    if timeStampPrevia < mktime(header.timeStampStart):
-                        registro.anormalidad = 'A'
-                    elif not corte.enProgreso:
-                        if not corte.justFinished:
-                            pass
-                        elif timeStampPrevia < corte.fin and (corte.fin-timeStampPrevia) > header.periodo*60:
-                            while (corte.fin-timeStampPrevia) > header.periodo*60:
-                                tStamp = tStampGenerator.send(None)
-                                timeStampPrevia = mktime(tStamp)
-                        if timeStampPrevia < corte.fin:
-                            corte.justFinished = False
-                            registro.anormalidad = 'B'
-                    elif corte.enProgreso:
+                    if corte:
                         if corte.justStarted:
-                            corte.justStarted = False
-                            if timeStampPrevia < corte.inicio:
-                                if (corte.inicio - timeStampPrevia) < header.periodo * 60:
-                                    registro.anormalidad = 'C'
-                                    continue
-                                elif (corte.inicio - timeStampPrevia) > header.periodo * 60:
-                                    timeStampPrevia = mktime(tStampGenerator.send(None))
-                                    continue
-                            elif timeStampPrevia > corte.inicio:
-                                if (timeStampPrevia - corte.inicio) < header.periodo * 60:
-                                    regBatch[-1].anormalidad = 'E'
-                                    continue
-                                elif (timeStampPrevia - corte.inicio) > header.periodo * 60:
-                                    regBatch[-1].anormalidad = 'F'
-                                    continue
-                        elif not corte.justStarted:
-                            timeStampPrevia = mktime(tStampGenerator.send(None))
+                            if not holdReg:
+                                registro.setTimeStamp(tStampGenerator.send(None))
+                            else:
+                                registro.setTimeStamp(holdReg.timeStampTuple)
+                            holdReg = registro
                             continue
-
+                        elif corte.justFinished:
+                            if holdReg and holdReg.timeStampSecs > corte.fin:
+                                registro.setTimeStamp(holdReg.timeStampTuple)
+                                holdReg = None
+                                registro.anormalidad = 'A'
+                            else:
+                                if not holdReg:
+                                    tStampTuple = tStampGenerator.send(None)
+                                    tStamp = mktime(tStampTuple)
+                                else:
+                                    tStamp = holdReg.timeStampSecs
+                                    tStampTuple = holdReg.timeStampTuple
+                                    holdReg.anormalidad = 'A'
+                                while tStamp < corte.fin:
+                                    tStampTuple = tStampGenerator.send(None)
+                                    tStamp = mktime(tStampTuple)
+                                registro.setTimeStamp(tStampTuple)
+                                registro.anormalidad = 'A'
+                            corte = None
+                    elif not corte:
+                        registro.setTimeStamp(tStampGenerator.send(None))
+                    if holdReg:
+                        holdReg = procesar(holdReg)
+                        datGenerator.send(holdReg)
+                        holdReg = None
                     registro = procesar(registro)
-                    tStamp = tStampGenerator.send(None)
-                    registro.setTimeStamp(tStamp)
-                    timeStampPrevia = registro.timeStampSecs
-                    regBatch.append(registro)
-                    regCount += 1
-
-            datGenerator = self.genDat(header.fileName)
-            errGenerator = self.genErr(header.fileName)
-            datGenerator.send(None)
-            errGenerator.send(None)
-            datGenerator.send(header)
-            for err in errBatch:  errGenerator.send(err)
-            for reg in regBatch:  datGenerator.send(reg)
+                    datGenerator.send(registro)
 
     def genDat(self, fileName):
         self.datName = checkFileName(fileName, '.dat')
@@ -222,6 +213,6 @@ class Ecamec:
                     registros.append(reg)
 
 
-ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/03 de Agosto/030388O1.R32')
+ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/03 de Agosto')
 for archivo in ecamec.archivos:
     ecamec.procesarR32(archivo)

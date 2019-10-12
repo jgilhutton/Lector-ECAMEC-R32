@@ -31,3 +31,11 @@ def checkFileName(fileName, ext):
             continue
         break
     return fileName + ext % c
+
+
+def convert(valor):
+    try:
+        valorConvertido = int(str(hex(valor))[2:])
+    except ValueError:
+        valorConvertido = int(hex(valor),16)
+    return valorConvertido

@@ -1,5 +1,10 @@
+# BuiltIns
 from time import strftime, strptime, mktime
 from struct import unpack
+
+# Custom
+from Tools import convert
+
 
 errCodes = {0x84: 'Descarga de datos',
             0x83: 'Cambio de Hora (Hora Anterior)',
@@ -11,6 +16,8 @@ errCodes = {0x84: 'Descarga de datos',
 
 class Registro:
     def __init__(self, unpackStr, regRaw, regMap):
+        self.regRaw = regRaw
+        self.unpackStr = unpackStr
         dataRaw = unpack(unpackStr, regRaw)
         for id, attr in enumerate(regMap, start=0):
             setattr(self, attr, dataRaw[id])
@@ -39,7 +46,6 @@ class Header(Registro):
 
 class RegistroErr(Registro):
     def setData(self):
-        convert = lambda x: int(str(hex(x))[2:])
         self.d, self.m, self.y, self.H, self.M, self.S = map(convert, (self.d, self.m, self.y, self.H, self.M, self.S))
         self.timeStamp = strptime(','.join((str(x) for x in (self.d, self.m, self.y, self.H, self.M, self.S))),
                                   '%d,%m,%y,%H,%M,%S')
@@ -49,7 +55,8 @@ class RegistroErr(Registro):
         self.detalle = errCodes[self.codigo]
 
 
-class EscalasCalibracion(Registro): pass
+class EscalasCalibracion(Registro):
+    pass
 
 
 class RegistroDat(Registro):
