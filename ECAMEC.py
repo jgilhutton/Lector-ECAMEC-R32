@@ -111,8 +111,12 @@ class Ecamec:
                                 registro.setTimeStamp(tStampGenerator.send(None))
                             else:
                                 registro.setTimeStamp(holdReg.timeStampTuple)
-                            holdReg = registro
-                            continue
+                            if not registro.last:
+                                holdReg = registro
+                                continue
+                            else:
+                                if registro.timeStampSecs > corte.inicio:
+                                    registro.anormalidad = 'A'
                         elif corte.justFinished:
                             if holdReg and holdReg.timeStampSecs > corte.fin:
                                 registro.setTimeStamp(holdReg.timeStampTuple)
@@ -192,6 +196,7 @@ class Ecamec:
                 reg = Header(unpackStr, data, mapa)
                 reg.setData()
                 registros.append(reg)
+                registros = setLast(registros)
                 yield registros
                 registros = []
             elif chunk.err:
@@ -211,6 +216,6 @@ class Ecamec:
                 registros.append(reg)
 
 
-ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/03 de Agosto')
+ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/02 de Agosto/090288O1.R32')
 for archivo in ecamec.archivos:
     ecamec.procesarR32(archivo)

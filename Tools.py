@@ -40,3 +40,13 @@ def convert(valor):
     except ValueError:
         valorConvertido = int(hex(valor),16)
     return valorConvertido
+
+
+def setLast(medicion):
+    from Registros import RegistroDat
+    for reg in medicion[::-1]:
+        if type(reg) == RegistroDat:
+            reg.last = True
+            break
+    return medicion
+

@@ -61,6 +61,7 @@ class EscalasCalibracion(Registro):
 
 class RegistroDat(Registro):
     anormalidad = ''
+    last = False
 
     def setTimeStamp(self, timeStampTuple):
         self.timeStampTuple = timeStampTuple
