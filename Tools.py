@@ -1,6 +1,7 @@
 from time import mktime, localtime
 from re import finditer
 from os.path import isfile
+from types import SimpleNamespace
 
 
 def genTimeStamp(startTime, periodo):
@@ -13,7 +14,7 @@ def genTimeStamp(startTime, periodo):
 def feeder(regex, data, reverse=False):
     if reverse: data = data[::-1]
     for match in finditer(regex, data):
-        yield match.groupdict()
+        yield SimpleNamespace(**match.groupdict())
 
 
 def inRange(value,boundaries):

@@ -174,43 +174,41 @@ class Ecamec:
         registros = []
         try:
             reverse = self.r32.tipoEquipo.reverse
-        except:
+        except AttributeError:
             return
-        for chunkDict in feeder(self.r32.tipoEquipo.regex, self.r32.rawData, reverse=reverse):
-            for key in filter(lambda x: chunkDict[x], chunkDict):
-                if key == 'calibr':
-                    unpackStr = self.r32.tipoEquipo.unpackHeaderCalibracion
-                    mapa = self.r32.tipoEquipo.calibrMap
-                    data = chunkDict[key]
-                    if reverse: data = data[::-1]
-                    reg = EscalasCalibracion(unpackStr, data, mapa)
-                    registros.append(reg)
-                elif key == 'header':
-                    unpackStr = self.r32.tipoEquipo.unpackHeaderData
-                    mapa = self.r32.tipoEquipo.headerMap
-                    data = chunkDict[key]
-                    if reverse: data = data[::-1]
-                    reg = Header(unpackStr, data, mapa)
-                    reg.setData()
-                    registros.append(reg)
-                    yield registros
-                    registros = []
-                    break
-                elif key == 'err':
-                    unpackStr = self.r32.tipoEquipo.unpackErr
-                    mapa = self.r32.tipoEquipo.errMap
-                    data = chunkDict[key]
-                    if reverse: data = data[::-1]
-                    reg = RegistroErr(unpackStr, data, mapa)
-                    reg.setData()
-                    registros.append(reg)
-                elif key == 'reg':
-                    unpackStr = self.r32.tipoEquipo.unpackReg
-                    mapa = self.r32.tipoEquipo.regMap
-                    data = chunkDict[key]
-                    if reverse: data = data[::-1]
-                    reg = RegistroDat(unpackStr, data, mapa)
-                    registros.append(reg)
+        for chunk in feeder(self.r32.tipoEquipo.regex, self.r32.rawData, reverse=reverse):
+            if chunk.calibr:
+                unpackStr = self.r32.tipoEquipo.unpackHeaderCalibracion
+                mapa = self.r32.tipoEquipo.calibrMap
+                data = chunk.calibr
+                if reverse: data = data[::-1]
+                reg = EscalasCalibracion(unpackStr, data, mapa)
+                registros.append(reg)
+            if chunk.header:
+                unpackStr = self.r32.tipoEquipo.unpackHeaderData
+                mapa = self.r32.tipoEquipo.headerMap
+                data = chunk.header
+                if reverse: data = data[::-1]
+                reg = Header(unpackStr, data, mapa)
+                reg.setData()
+                registros.append(reg)
+                yield registros
+                registros = []
+            elif chunk.err:
+                unpackStr = self.r32.tipoEquipo.unpackErr
+                mapa = self.r32.tipoEquipo.errMap
+                data = chunk.err
+                if reverse: data = data[::-1]
+                reg = RegistroErr(unpackStr, data, mapa)
+                reg.setData()
+                registros.append(reg)
+            elif chunk.reg:
+                unpackStr = self.r32.tipoEquipo.unpackReg
+                mapa = self.r32.tipoEquipo.regMap
+                data = chunk.reg
+                if reverse: data = data[::-1]
+                reg = RegistroDat(unpackStr, data, mapa)
+                registros.append(reg)
 
 
 ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/03 de Agosto')
