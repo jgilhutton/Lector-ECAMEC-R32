@@ -14,35 +14,27 @@ Iré modificando y ampliando el programa a medida que vaya descubriendo cosas.
 - 0xB1
 - 0xDB
 - 0x9C
-- 0x91
 - 0x9B
 - 0x21
-- 0x01
 
 Las series corresponden al noveno (9°) byte del header de cada medición. Generalmente, los headers se encuentran al principio de cada archivo R32 precedidos por un byte \xff, en ese caso, el byte de la serie sería el décimo (10°) byte del archivo .R32
 
 # Modo de uso:
 
 ```
-     Modo de uso:    python r32.py [-d Directorio]|[-f Archivo] [Opcionales]
-    -d  Directorio con archivos .R32
-    -f  Archivo .R32
+    Modo de uso:    python ECAMEC.py -i [Directorio]|[Archivo] [Opcionales]
     Opcionales:
         -o  Directorio donde se guardan los archivos generados
             Valor por defecto: Directorio de los archivos R32
         -tv Factor de tensión   Valor por defecto: 1
         -ti Factor de corriente Valor por defecto: 1
         -v  Muestra más información en la pantalla durante el
-            procesamiento. Valor por defect: Falso
-        -vv Igual que -v pero con información de depuración
-
-    Los archivos pueden tener cualquier extensión.
-    Lo que importa es la información que está dentro de ellos.
-    Un archivo válido puede ser MEDICION.TXT, si se desea
+            procesamiento.
+        -vv Muestra aun más información
 
     Ejemplos:
-    python r32.py -d "C:\Mediciones" -o "C:\Mediciones Procesadas"
-    python r32.py -f MEDICION.R32 -tv 35 -ti 15.5
+    python ECAMEC.py -i "C:\Mediciones" -o "C:\Mediciones Procesadas"
+    python ECAMEC.py -i MEDICION.R32 -tv 35 -ti 15.5
 ```
 
 # Requerimientos:

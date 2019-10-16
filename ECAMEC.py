@@ -1,8 +1,6 @@
 # BuiltIns
 from os import walk
-from os.path import isdir
 from re import findall
-from types import SimpleNamespace
 
 # Custom
 import Series
@@ -12,10 +10,10 @@ from Tools import *
 mapaEquipos = {0xB1: Series.Serie04,
                0xDB: Series.Serie12,
                0x9C: Series.Serie1F,
-               0x91: Series.Serie20,
+               # 0x91: Series.Serie20,
                0x9B: Series.Serie0A,
                0x21: Series.Serie15,
-               0x01: Series.Serie13,
+               # 0x01: Series.Serie13,
                0xB3: '\x05', 0xD3: '\x06', 0xF3: '\x06',
                0xCB: '\x0D', 0xEE: '\x0B', 0x60: '\x0F', 0x61: '\x10', 0x63: '\x11', 0x65: '\x12',
                0x02: '\x14', 0x04: '\x16', 0xA0: '\x17', 0xAB: '\x18', 0xAD: '\x19', 0x5B: '\x0C', 0xFF: '\x1A',
@@ -48,21 +46,19 @@ class R32:
 
 
 class Ecamec:
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         if not hasattr(self, 'TV'): self.TV = 1.0
         if not hasattr(self, 'TI'): self.TI = 1.0
-        for arg in args:
-            if isdir(arg):
-                for root, _, files in walk(arg):
-                    self.path = root
-                    self.archivos = [x for x in files if x.lower().endswith('.r32')]
-                    break
-            if isfile(arg):
-                splittedPath = arg.split('/')
-                self.path = '/'.join(splittedPath[:-1])
-                self.archivos = [splittedPath[-1], ]
-        if not hasattr(self, 'outputDirectory'): self.outputDirectory = self.path
+        if isdir(self.rutaProcesar):
+            for root, _, files in walk(self.rutaProcesar):
+                self.path = root
+                self.archivos = [x for x in files if x.lower().endswith('.r32')]
+                break
+        elif isfile(self.rutaProcesar):
+            splittedPath = self.rutaProcesar.split('/')
+            self.path = '/'.join(splittedPath[:-1])
+            self.archivos = [splittedPath[-1], ]
 
     def procesarR32(self, file):
         self.r32 = R32(self.path, file)
@@ -94,7 +90,8 @@ class Ecamec:
                         timeStampInicioCorte = registro.timeStampSegundos
                         if timeStampInicioCorte < mktime(header.timeStampStart):
                             timeStampInicioCorte = mktime(header.timeStampStart)
-                        cd = {'inicio': timeStampInicioCorte,'enProgreso':True,'justStarted':True,'justFinished':None}
+                        cd = {'inicio': timeStampInicioCorte, 'enProgreso': True, 'justStarted': True,
+                              'justFinished': None}
                         corte = SimpleNamespace(**cd)
                     elif registro.codigo == 0x81:
                         timeStampFinCorte = registro.timeStampSegundos
@@ -216,6 +213,7 @@ class Ecamec:
                 registros.append(reg)
 
 
-ecamec = Ecamec('C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/02 de Agosto/090288O1.R32')
+args = argParse()
+ecamec = Ecamec(**args)
 for archivo in ecamec.archivos:
     ecamec.procesarR32(archivo)
