@@ -7,19 +7,25 @@ import Series
 from Registros import *
 from Tools import *
 
-mapaEquipos = {0xB1: Series.Serie04,
-               0xDB: Series.Serie12,
-               0x9C: Series.Serie1F,
-               # 0x91: Series.Serie20,
-               0x9B: Series.Serie0A,
-               0x21: Series.Serie15,
-               # 0x01: Series.Serie13,
-               0xB3: '\x05', 0xD3: '\x06', 0xF3: '\x06',
-               0xCB: '\x0D', 0xEE: '\x0B', 0x60: '\x0F', 0x61: '\x10', 0x63: '\x11', 0x65: '\x12',
-               0x02: '\x14', 0x04: '\x16', 0xA0: '\x17', 0xAB: '\x18', 0xAD: '\x19', 0x5B: '\x0C', 0xFF: '\x1A',
-               0x82: '\x1B', 0x05: '\x1C', 0x84: '\x1D', 0x45: '\x1E',
-               0x92: '\x21', 0x48: '\x1E', 0x49: '\x1E', 0x50: '\x1E', 0x51: '\x1E',
-               0x00: '\x00'}
+mapaEquipos = {
+                # Monofásicas
+                0xB1: Series.Serie04,
+                0x9C: Series.Serie1F,
+                0x9B: Series.Serie0A,
+                0x21: Series.Serie15,
+
+                # Trifasicas
+                0xDB: Series.Serie12,
+                0x91: '\x20',
+                0x01: Series.Serie13,
+
+                # Pendientes
+                0xB3: '\x05', 0xD3: '\x06', 0xF3: '\x06',
+                0xCB: '\x0D', 0xEE: '\x0B', 0x60: '\x0F', 0x61: '\x10', 0x63: '\x11', 0x65: '\x12',
+                0x02: '\x14', 0x04: '\x16', 0xA0: '\x17', 0xAB: '\x18', 0xAD: '\x19', 0x5B: '\x0C', 0xFF: '\x1A',
+                0x82: '\x1B', 0x05: '\x1C', 0x84: '\x1D', 0x45: '\x1E',
+                0x92: '\x21', 0x48: '\x1E', 0x49: '\x1E', 0x50: '\x1E', 0x51: '\x1E',
+                0x00: '\x00'}
 
 
 class R32:
@@ -48,8 +54,6 @@ class R32:
 class Ecamec:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        if not hasattr(self, 'TV'): self.TV = 1.0
-        if not hasattr(self, 'TI'): self.TI = 1.0
         if isdir(self.rutaProcesar):
             for root, _, files in walk(self.rutaProcesar):
                 self.path = root
@@ -213,7 +217,14 @@ class Ecamec:
                 registros.append(reg)
 
 
-args = argParse()
+# args = argParse()
+
+#TEMP
+ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Viejas/Serie vieja T/'
+file = '020288O1.R32'
+args = {'rutaProcesar':ruta+file,'outputDirectory':ruta+'out/','TV':1.0,'TI':1.0}
+#TEMP
+
 ecamec = Ecamec(**args)
 for archivo in ecamec.archivos:
     ecamec.procesarR32(archivo)

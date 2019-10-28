@@ -39,11 +39,11 @@ def argParse():
             printHelp('No se encontró el directorio de salida "{}"'.format(outputDirectory))
         try:
             TV = float(argv[argv.index('-tv') + 1]) if '-tv' in argv else 1.0
-        except:
+        except ValueError:
             printHelp('TV debe ser un número (flotante o entero)')
         try:
             TI = float(argv[argv.index('-ti') + 1]) if '-ti' in argv else 1.0
-        except:
+        except ValueError:
             printHelp('TI debe ser un número (flotante o entero)')
         for arg in argv:
             if arg.startswith('-v'):
