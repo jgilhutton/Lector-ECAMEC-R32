@@ -5,13 +5,15 @@ from struct import unpack
 # Custom
 from Tools import convert
 
-
 errCodes = {0x84: 'Descarga de datos',
             0x83: 'Cambio de Hora (Hora Anterior)',
             0x85: 'Cambio de Hora (Hora Actual)',
             0x82: 'Corte de Tensión',
             0x81: 'Vuelta de Tensión',
             -1: 'Anormalidad', }
+iNominales = {0x30: 5, 0x31: 200, 0x32: 2, 0x33: 35, 0x34: 500, 0x35: 70, 0x36: 800, 0x37: 1500,
+              0x38: 300, 0x39: 100, }
+vNominales = {0x30: 110, 0x31: 220, 0x32: 600, 0x33: 7620, 0x34: 19050}
 
 
 class Registro:
@@ -30,9 +32,9 @@ class Header(Registro):
         except AttributeError:
             pass
         self.periodo, self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt, self.dEnd, self.mEnd, self.yEnd, self.hEnd, self.minEnd = (
-        int(x.decode('utf-8')) for x in (
-        self.periodo, self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt, self.dEnd, self.mEnd, self.yEnd,
-        self.hEnd, self.minEnd))
+            int(x.decode('utf-8')) for x in (
+            self.periodo, self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt, self.dEnd, self.mEnd, self.yEnd,
+            self.hEnd, self.minEnd))
         self.timeStampStart = strptime(
             ','.join((str(x) for x in (self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt))),
             '%d,%m,%y,%H,%M')
@@ -42,6 +44,8 @@ class Header(Registro):
         self.horaInicio = strftime('%H:%M', self.timeStampStart)
         self.fechaFin = strftime('%d/%m/%y', self.timeStampEnd)
         self.horaFin = strftime('%H:%M', self.timeStampEnd)
+        self.vNom = vNominales[self.vNomRaw]
+        self.iNom = iNominales[self.iNomRaw]
 
 
 class RegistroErr(Registro):

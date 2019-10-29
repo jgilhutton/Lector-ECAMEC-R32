@@ -16,13 +16,14 @@ mapaEquipos = {
 
                 # Trifasicas
                 0xDB: Series.Serie12,
+                0x5B: Series.Serie0C,
                 0x91: '\x20',
                 0x01: Series.Serie13,
 
                 # Pendientes
                 0xB3: '\x05', 0xD3: '\x06', 0xF3: '\x06',
                 0xCB: '\x0D', 0xEE: '\x0B', 0x60: '\x0F', 0x61: '\x10', 0x63: '\x11', 0x65: '\x12',
-                0x02: '\x14', 0x04: '\x16', 0xA0: '\x17', 0xAB: '\x18', 0xAD: '\x19', 0x5B: '\x0C', 0xFF: '\x1A',
+                0x02: '\x14', 0x04: '\x16', 0xA0: '\x17', 0xAB: '\x18', 0xAD: '\x19', 0xFF: '\x1A',
                 0x82: '\x1B', 0x05: '\x1C', 0x84: '\x1D', 0x45: '\x1E',
                 0x92: '\x21', 0x48: '\x1E', 0x49: '\x1E', 0x50: '\x1E', 0x51: '\x1E',
                 0x00: '\x00'}
@@ -32,23 +33,21 @@ class R32:
     def __init__(self, path, file):
         pathToFile = path + '/' + file
         self.fileName = file
-        self.openR32(pathToFile)
-        self.getEquipo()
 
-    def openR32(self, pathToFile):
         with open(pathToFile, 'rb') as f:
             self.rawData = f.read()
 
-    def getEquipo(self):
         headers = findall(b'(?<=\xff)[^\xff]{36}(?=\xff)', self.rawData)
-        if not headers: headers = findall(b'[^\xff]{21}(?=\x55\x55\x55\xaa)', self.rawData)
-        if not headers: pass
-        series = [x[8] for x in headers]
-        if len(set(series)) > 1:
-            print('multiples series detectadas')
-            print(series)
-        self.serie = series[0]
-        self.tipoEquipo = mapaEquipos[self.serie]
+        if not headers:
+            # Try 1612
+            self.tipoEquipo = None
+        else:
+            series = [x[8] for x in headers]
+            if len(set(series)) > 1:
+                print('multiples series detectadas')
+                print(series)
+            self.serie = series[0]
+            self.tipoEquipo = mapaEquipos[self.serie]
 
 
 class Ecamec:
@@ -66,6 +65,8 @@ class Ecamec:
 
     def procesarR32(self, file):
         self.r32 = R32(self.path, file)
+        if not self.r32.tipoEquipo:
+            return
         extractor = self.extraerData()
         for medicion in extractor:
             header = medicion.pop()
@@ -83,7 +84,7 @@ class Ecamec:
             datGenerator.send(header)
             tStampGenerator = genTimeStamp(header.timeStampStart, header.periodo)
             procesar = lambda r: self.r32.tipoEquipo.analizarRegistroDat(self.r32.tipoEquipo, r, calibraciones,
-                                                                         self.TV, self.TI, header.periodo)
+                                                                         self.TV, self.TI, header)
             corte = None
             holdReg = None
 
@@ -147,13 +148,13 @@ class Ecamec:
                     datGenerator.send(registro)
 
     def genDat(self, fileName):
-        self.datName = checkFileName(fileName, '.dat')
-        outputFile = open(self.outputDirectory + '/' + self.datName, 'w', encoding='utf-8')
+        datName = checkFileName(fileName, '.dat')
+        outputFile = open(self.outputDirectory + '/' + datName, 'w', encoding='utf-8')
         header = (yield)
         headerStr = self.r32.tipoEquipo.headerFormatString.format(header.fileName, '-',
                                                                   header.serie.decode('utf-8') if hasattr(header,
                                                                                                           'serie') else 'ND',
-                                                                  header.periodo, 'min', '220', self.TV, '5', self.TI,
+                                                                  header.periodo, 'min', header.vNom, self.TV, header.iNom, self.TI,
                                                                   header.fechaInicio, header.fechaFin,
                                                                   header.horaInicio, header.horaFin)
         outputFile.write(headerStr)
@@ -166,8 +167,8 @@ class Ecamec:
             outputFile.write(regStr)
 
     def genErr(self, fileName):
-        self.errName = checkFileName(fileName, '.err')
-        outputFile = open(self.outputDirectory + '/' + self.errName, 'w', encoding='utf-8')
+        errName = checkFileName(fileName, '.err')
+        outputFile = open(self.outputDirectory + '/' + errName, 'w', encoding='utf-8')
         while True:
             reg = (yield)
             if type(reg) != RegistroErr: break
@@ -220,9 +221,9 @@ class Ecamec:
 # args = argParse()
 
 #TEMP
-ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Viejas/Serie vieja T/'
-file = '020288O1.R32'
-args = {'rutaProcesar':ruta+file,'outputDirectory':ruta+'out/','TV':1.0,'TI':1.0}
+ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Barras/'
+file = 'M0159560.R32'
+args = {'rutaProcesar':ruta+file,'outputDirectory':ruta,'TV':1.0,'TI':1.0}
 #TEMP
 
 ecamec = Ecamec(**args)

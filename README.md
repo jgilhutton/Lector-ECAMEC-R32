@@ -11,12 +11,13 @@ Iré modificando y ampliando el programa a medida que vaya descubriendo cosas.
 
 # Este programa, al día de la fecha, puede leer las series:
 
-- 0xB1
-- 0xDB
-- 0x9C
-- 0x9B
-- 0x21
-- 0x01
+- 0xB1 _(Monofásica)_
+- 0x9C _(Monofásica)_
+- 0x9B _(Monofásica)_
+- 0x21 _(Monofásica)_
+- 0xDB _(Trifásica)_
+- 0x01 _(Trifásica)_
+- 0x5B _(Trifásica)_
 
 Las series corresponden al noveno (9°) byte del header de cada medición. Generalmente, los headers se encuentran al principio de cada archivo R32 precedidos por un byte \xff, en ese caso, el byte de la serie sería el décimo (10°) byte del archivo .R32
 
