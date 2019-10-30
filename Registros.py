@@ -14,7 +14,7 @@ errCodes = {0x84: 'Descarga de datos',
 iNominales = {0x30: 5, 0x31: 200, 0x32: 2, 0x33: 35, 0x34: 500, 0x35: 70, 0x36: 800, 0x37: 1500,
               0x38: 300, 0x39: 100, }
 vNominales = {0x30: 110, 0x31: 220, 0x32: 600, 0x33: 7620, 0x34: 19050}
-
+mapaPeriodos = {16: 1, 17: 5, 18: 15, 19: 30}
 
 class Registro:
     def __init__(self, unpackStr, regRaw, regMap):
@@ -31,10 +31,18 @@ class Header(Registro):
             self.fileName = self.fileName.strip(b'\x00').decode('utf-8')
         except AttributeError:
             pass
+
         self.periodo, self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt, self.dEnd, self.mEnd, self.yEnd, self.hEnd, self.minEnd = (
             int(x.decode('utf-8')) for x in (
             self.periodo, self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt, self.dEnd, self.mEnd, self.yEnd,
             self.hEnd, self.minEnd))
+
+        if self.periodo in mapaPeriodos:
+            self.periodo = int(mapaPeriodos[self.periodo]/60)
+            self.unidad = 'seg'
+        else:
+            self.unidad = 'min'
+
         self.timeStampStart = strptime(
             ','.join((str(x) for x in (self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt))),
             '%d,%m,%y,%H,%M')

@@ -154,7 +154,7 @@ class Ecamec:
         headerStr = self.r32.tipoEquipo.headerFormatString.format(header.fileName, '-',
                                                                   header.serie.decode('utf-8') if hasattr(header,
                                                                                                           'serie') else 'ND',
-                                                                  header.periodo, 'min', header.vNom, self.TV, header.iNom, self.TI,
+                                                                  header.periodo, header.unidad, header.vNom, self.TV, header.iNom, self.TI,
                                                                   header.fechaInicio, header.fechaFin,
                                                                   header.horaInicio, header.horaFin)
         outputFile.write(headerStr)
@@ -222,8 +222,8 @@ class Ecamec:
 
 #TEMP
 ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Barras/'
-file = 'M0159560.R32'
-args = {'rutaProcesar':ruta+file,'outputDirectory':ruta,'TV':1.0,'TI':1.0}
+file = 'M2159576.R32'
+args = {'rutaProcesar':ruta+file,'outputDirectory':ruta,'TV':120,'TI':100}
 #TEMP
 
 ecamec = Ecamec(**args)
