@@ -8,25 +8,25 @@ from Registros import *
 from Tools import *
 
 mapaEquipos = {
-                # Monofásicas
-                0xB1: Series.Serie04, # OK
-                0x9C: Series.Serie1F, # OK
-                0x9B: Series.Serie0A, # OK
-                0x21: Series.Serie15, # OK
+    # Monofásicas
+    0xB1: Series.Serie04,  # OK
+    0x9C: Series.Serie1F,  # OK
+    0x9B: Series.Serie0A,  # OK
+    0x21: Series.Serie15,  # OK
 
-                # Trifasicas
-                0xDB: Series.Serie12,
-                0x5B: Series.Serie0C,
-                0x91: '\x20',
-                0x01: Series.Serie13,
+    # Trifasicas
+    0xDB: Series.Serie12,
+    0x5B: Series.Serie0C,
+    0x91: '\x20',
+    0x01: Series.Serie13,
 
-                # Pendientes
-                0xB3: '\x05', 0xD3: '\x06', 0xF3: '\x06',
-                0xCB: '\x0D', 0xEE: '\x0B', 0x60: '\x0F', 0x61: '\x10', 0x63: '\x11', 0x65: '\x12',
-                0x02: '\x14', 0x04: '\x16', 0xA0: '\x17', 0xAB: '\x18', 0xAD: '\x19', 0xFF: '\x1A',
-                0x82: '\x1B', 0x05: '\x1C', 0x84: '\x1D', 0x45: '\x1E',
-                0x92: '\x21', 0x48: '\x1E', 0x49: '\x1E', 0x50: '\x1E', 0x51: '\x1E',
-                0x00: '\x00'}
+    # Pendientes
+    0xB3: '\x05', 0xD3: '\x06', 0xF3: '\x06',
+    0xCB: '\x0D', 0xEE: '\x0B', 0x60: '\x0F', 0x61: '\x10', 0x63: '\x11', 0x65: '\x12',
+    0x02: '\x14', 0x04: '\x16', 0xA0: '\x17', 0xAB: '\x18', 0xAD: '\x19', 0xFF: '\x1A',
+    0x82: '\x1B', 0x05: '\x1C', 0x84: '\x1D', 0x45: '\x1E',
+    0x92: '\x21', 0x48: '\x1E', 0x49: '\x1E', 0x50: '\x1E', 0x51: '\x1E',
+    0x00: '\x00'}
 
 
 class R32:
@@ -163,7 +163,8 @@ class Ecamec:
         headerStr = self.r32.tipoEquipo.headerFormatString.format(header.fileName, '-',
                                                                   header.serie.decode('utf-8') if hasattr(header,
                                                                                                           'serie') else 'ND',
-                                                                  header.periodo, header.unidad, header.vNom, self.TV, header.iNom, self.TI,
+                                                                  header.periodo, header.unidad, header.vNom, self.TV,
+                                                                  header.iNom, self.TI,
                                                                   header.fechaInicio, header.fechaFin,
                                                                   header.horaInicio, header.horaFin)
         outputFile.write(headerStr)
@@ -241,12 +242,6 @@ class Ecamec:
 
 
 args = argParse()
-
-#TEMP
-# ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/08 de Agosto/'
-# file = '080888O1.R32'
-# args = {'rutaProcesar':ruta+file,'outputDirectory':ruta,'TV':120,'TI':60}
-#TEMP
 
 ecamec = Ecamec(**args)
 for archivo in ecamec.archivos:

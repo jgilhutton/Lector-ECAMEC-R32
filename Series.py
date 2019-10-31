@@ -42,19 +42,22 @@ class Serie12(Serie):
     headerFormatString = 'Equipo Nro:\t{}\t\tCódigo de Cliente: \tID. Subestación:\t{}\nNumero de Serie:\t{}\tPeriodo:\t{} {}.\nTensión:     \t{} V\t\tFactor de Corrección: {}\nCorriente:\t{} Amp\t\tFactor de Corrección: {}\nDia inicio:\t{}\tDia fin:\t{}\nHora inicio:\t{}\tHora fin:\t{}\n\nFecha\tHora\tU1\tU1 Max\tU1 Min\tIA1\tCosFi 1\tEA1\tU2\tU2 Max\tU2 Min\tIA2\tCosFi 2\tEA2\tU3\tU3 Max\tU3 Min\tIA3\tCosFi 3\tEA3\tTHD1\tFlicker1\tP Total\tEA Total\tAnormalidad\n\t\tV\tV\tV\tA\tp.u.\tKWh\tV\tV\tV\tA\tp.u.\tKWh\tV\tV\tV\tA\tp.u.\tKWh\t%\t%\tKW\tKWh\t\n'
 
     def analizarRegistroDat(self, reg, calibr, tv, ti, header):
-        reg.v1, reg.v1Max, reg.v1Min = (x * (header.vNom / calibr.cV1) * tv for x in (reg.v1Raw, reg.v1MaxRaw, reg.v1MinRaw))
+        reg.v1, reg.v1Max, reg.v1Min = (x * (header.vNom / calibr.cV1) * tv for x in
+                                        (reg.v1Raw, reg.v1MaxRaw, reg.v1MinRaw))
         if reg.v1 > reg.v1Max: reg.v1Max = reg.v1
         if reg.v1Min > reg.v1: reg.v1 = reg.v1Min
         reg.v1, reg.v1Max, reg.v1Min = (self.limitar(self, v, self.vCap * tv) for v in
                                         (reg.v1, reg.v1Max, reg.v1Min))
 
-        reg.v2, reg.v2Max, reg.v2Min = (x * (header.vNom / calibr.cV2) * tv for x in (reg.v2Raw, reg.v2MaxRaw, reg.v2MinRaw))
+        reg.v2, reg.v2Max, reg.v2Min = (x * (header.vNom / calibr.cV2) * tv for x in
+                                        (reg.v2Raw, reg.v2MaxRaw, reg.v2MinRaw))
         if reg.v2 > reg.v2Max: reg.v2Max = reg.v2
         if reg.v2Min > reg.v2: reg.v2 = reg.v2Min
         reg.v2, reg.v2Max, reg.v2Min = (self.limitar(self, v, self.vCap * tv) for v in
                                         (reg.v2, reg.v2Max, reg.v2Min))
 
-        reg.v3, reg.v3Max, reg.v3Min = (x * (header.vNom / calibr.cV3) * tv for x in (reg.v3Raw, reg.v3MaxRaw, reg.v3MinRaw))
+        reg.v3, reg.v3Max, reg.v3Min = (x * (header.vNom / calibr.cV3) * tv for x in
+                                        (reg.v3Raw, reg.v3MaxRaw, reg.v3MinRaw))
         if reg.v3 > reg.v3Max: reg.v3Max = reg.v3
         if reg.v3Min > reg.v3: reg.v3 = reg.v3Min
         reg.v3, reg.v3Max, reg.v3Min = (self.limitar(self, v, self.vCap * tv) for v in
@@ -257,7 +260,7 @@ class Serie13(Serie):
 
     def analizarRegistroDat(self, reg, calibr, tv, ti, header):
         from math import floor
-        calibr.cV = 26214/2
+        calibr.cV = 26214 / 2
         reg.v1 = reg.v1Raw * (header.vNom / calibr.cV) * tv
         reg.v1Max = reg.v1MaxRaw * (header.vNom / calibr.cV) * tv
         reg.v1Min = reg.v1MinRaw * (header.vNom / calibr.cV) * tv
@@ -343,19 +346,22 @@ class Serie0C(Serie):
     headerFormatString = 'Equipo Nro:\t{}\t\tCódigo de Cliente: \tID. Subestación:\t{}\nNumero de Serie:\t{}\tPeriodo:\t{} {}.\nTensión:     \t{} V\t\tFactor de Corrección: {}\nCorriente:\t{} Amp\t\tFactor de Corrección: {}\nDia inicio:\t{}\tDia fin:\t{}\nHora inicio:\t{}\tHora fin:\t{}\n\nFecha\tHora\tU1\tU1 Max\tU1 Min\tIA1\tCosFi 1\tEA1\tU2\tU2 Max\tU2 Min\tIA2\tCosFi 2\tEA2\tU3\tU3 Max\tU3 Min\tIA3\tCosFi 3\tEA3\tTHD1\tFlicker1\tP Total\tEA Total\tAnormalidad\n\t\tV\tV\tV\tA\tp.u.\tKWh\tV\tV\tV\tA\tp.u.\tKWh\tV\tV\tV\tA\tp.u.\tKWh\t%\t%\tKW\tKWh\t\n'
 
     def analizarRegistroDat(self, reg, calibr, tv, ti, header):
-        reg.v1, reg.v1Max, reg.v1Min = (x * (header.vNom / calibr.cV1) * tv for x in (reg.v1Raw, reg.v1MaxRaw, reg.v1MinRaw))
+        reg.v1, reg.v1Max, reg.v1Min = (x * (header.vNom / calibr.cV1) * tv for x in
+                                        (reg.v1Raw, reg.v1MaxRaw, reg.v1MinRaw))
         if reg.v1 > reg.v1Max: reg.v1Max = reg.v1
         if reg.v1Min > reg.v1: reg.v1 = reg.v1Min
         reg.v1, reg.v1Max, reg.v1Min = (self.limitar(self, v, self.vCap * tv) for v in
                                         (reg.v1, reg.v1Max, reg.v1Min))
 
-        reg.v2, reg.v2Max, reg.v2Min = (x * (header.vNom / calibr.cV2) * tv for x in (reg.v2Raw, reg.v2MaxRaw, reg.v2MinRaw))
+        reg.v2, reg.v2Max, reg.v2Min = (x * (header.vNom / calibr.cV2) * tv for x in
+                                        (reg.v2Raw, reg.v2MaxRaw, reg.v2MinRaw))
         if reg.v2 > reg.v2Max: reg.v2Max = reg.v2
         if reg.v2Min > reg.v2: reg.v2 = reg.v2Min
         reg.v2, reg.v2Max, reg.v2Min = (self.limitar(self, v, self.vCap * tv) for v in
                                         (reg.v2, reg.v2Max, reg.v2Min))
 
-        reg.v3, reg.v3Max, reg.v3Min = (x * (header.vNom / calibr.cV3) * tv for x in (reg.v3Raw, reg.v3MaxRaw, reg.v3MinRaw))
+        reg.v3, reg.v3Max, reg.v3Min = (x * (header.vNom / calibr.cV3) * tv for x in
+                                        (reg.v3Raw, reg.v3MaxRaw, reg.v3MinRaw))
         if reg.v3 > reg.v3Max: reg.v3Max = reg.v3
         if reg.v3Min > reg.v3: reg.v3 = reg.v3Min
         reg.v3, reg.v3Max, reg.v3Min = (self.limitar(self, v, self.vCap * tv) for v in
