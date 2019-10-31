@@ -9,12 +9,12 @@ errCodes = {0x84: 'Descarga de datos',
             0x83: 'Cambio de Hora (Hora Anterior)',
             0x85: 'Cambio de Hora (Hora Actual)',
             0x82: 'Corte de Tensión',
-            0x81: 'Vuelta de Tensión',
-            -1: 'Anormalidad', }
+            0x81: 'Vuelta de Tensión',}
 iNominales = {0x30: 5, 0x31: 200, 0x32: 2, 0x33: 35, 0x34: 500, 0x35: 70, 0x36: 800, 0x37: 1500,
-              0x38: 300, 0x39: 100, }
+              0x38: 300, 0x39: 100,}
 vNominales = {0x30: 110, 0x31: 220, 0x32: 600, 0x33: 7620, 0x34: 19050}
 mapaPeriodos = {16: 1, 17: 5, 18: 15, 19: 30}
+
 
 class Registro:
     def __init__(self, unpackStr, regRaw, regMap):
@@ -38,7 +38,7 @@ class Header(Registro):
             self.hEnd, self.minEnd))
 
         if self.periodo in mapaPeriodos:
-            self.periodo = int(mapaPeriodos[self.periodo]/60)
+            self.periodo = int(mapaPeriodos[self.periodo] / 60)
             self.unidad = 'seg'
         else:
             self.unidad = 'min'
@@ -54,6 +54,11 @@ class Header(Registro):
         self.horaFin = strftime('%H:%M', self.timeStampEnd)
         self.vNom = vNominales[self.vNomRaw]
         self.iNom = iNominales[self.iNomRaw]
+
+    def resetInicio(self, timeStamp: tuple):
+        self.timeStampStart = timeStamp
+        self.fechaInicio = strftime('%d/%m/%y', self.timeStampStart)
+        self.horaInicio = strftime('%H:%M', self.timeStampStart)
 
 
 class RegistroErr(Registro):
@@ -75,7 +80,7 @@ class RegistroDat(Registro):
     anormalidad = ''
     last = False
 
-    def setTimeStamp(self, timeStampTuple):
+    def setTimeStamp(self, timeStampTuple: tuple):
         self.timeStampTuple = timeStampTuple
         self.timeStampSecs = mktime(timeStampTuple)
         self.fecha = strftime('%d/%m/%y', timeStampTuple)

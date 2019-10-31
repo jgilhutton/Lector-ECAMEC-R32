@@ -109,7 +109,7 @@ class Serie12(Serie):
 
         thd = abs((100 / (reg.v1Raw * (header.vNom / calibr.cV1))) * (
                 (18 / calibr.cThd) * (reg.thdRaw - ((calibr.cRes / calibr.cV1) * reg.v1Raw))))
-        fkr = ((reg.fkrRaw * header.vNom * .02) / calibr.cFkr) * (100 / reg.v1)
+        fkr = ((reg.fkrRaw * header.vNom * .02) / calibr.cFkr) * (100 / reg.v1 * tv)
         reg.thd = self.limitar(self, thd, self.thdCap)
         reg.fkr = self.limitar(self, fkr, self.fkrCap)
 
@@ -136,12 +136,12 @@ class Serie1F(Serie):
         reg.v1 = reg.v1Raw * (header.vNom / calibr.cV) * tv
         reg.v1Max = reg.v1MaxRaw * (header.vNom / calibr.cV) * tv
         reg.v1Min = reg.v1MinRaw * (header.vNom / calibr.cV) * tv
-        if reg.v1 > reg.v1Max: reg.v1Max = reg.v1
-        if reg.v1Min > reg.v1: reg.v1 = reg.v1Min
+        if reg.v1 > reg.v1Max: reg.v1 = reg.v1Max
+        if reg.v1Min > reg.v1: reg.v1Min = reg.v1
         reg.v1, reg.v1Max, reg.v1Min = (self.limitar(self, v, self.vCap * tv) for v in (reg.v1, reg.v1Max, reg.v1Min))
         thd = abs((100 / (reg.v1Raw * (header.vNom / calibr.cV))) * (
                 (18 / calibr.cThd) * (reg.thdRaw - ((calibr.cRes / calibr.cV) * reg.v1Raw))))
-        fkr = ((reg.fkrRaw * header.vNom * .02) / calibr.cFkr) * (100 / reg.v1)
+        fkr = ((reg.fkrRaw * header.vNom * .02) / calibr.cFkr) * (100 / reg.v1 * tv)
         reg.thd = self.limitar(self, thd, self.thdCap)
         reg.fkr = self.limitar(self, fkr, self.fkrCap)
         return reg
@@ -169,7 +169,7 @@ class Serie04(Serie):
         reg.v1, reg.v1Max, reg.v1Min = (self.limitar(self, v, self.vCap * tv) for v in (reg.v1, reg.v1Max, reg.v1Min))
         thd = abs((100 / (reg.v1Raw * (header.vNom / calibr.cV))) * (
                 (18 / calibr.cThd) * (reg.thdRaw - ((calibr.cRes / calibr.cV) * reg.v1Raw))))
-        fkr = ((reg.fkrRaw * header.vNom * .02) / calibr.cFkr) * (100 / reg.v1)
+        fkr = ((reg.fkrRaw * header.vNom * .02) / calibr.cFkr) * (100 / reg.v1 * tv)
         reg.thd = self.limitar(self, thd, self.thdCap)
         reg.fkr = self.limitar(self, fkr, self.fkrCap)
         return reg
@@ -197,7 +197,7 @@ class Serie0A(Serie):
         reg.v1, reg.v1Max, reg.v1Min = (self.limitar(self, v, self.vCap * tv) for v in (reg.v1, reg.v1Max, reg.v1Min))
         thd = abs((100 / (reg.v1Raw * (header.vNom / calibr.cV))) * (
                 (18 / calibr.cThd) * (reg.thdRaw - ((calibr.cRes / calibr.cV) * reg.v1Raw))))
-        fkr = ((reg.fkrRaw * header.vNom * .02) / calibr.cFkr) * (100 / reg.v1)
+        fkr = ((reg.fkrRaw * header.vNom * .02) / calibr.cFkr) * (100 / reg.v1 * tv)
         reg.thd = self.limitar(self, thd, self.thdCap)
         reg.fkr = self.limitar(self, fkr, self.fkrCap)
         return reg
@@ -225,8 +225,8 @@ class Serie15(Serie):
         if reg.v1 > reg.v1Max: reg.v1Max = reg.v1
         if reg.v1Min > reg.v1: reg.v1 = reg.v1Min
         reg.v1, reg.v1Max, reg.v1Min = (self.limitar(self, v, self.vCap * tv) for v in (reg.v1, reg.v1Max, reg.v1Min))
-        thd = reg.thdRaw * (tv * tv) * 50 / 65278
-        fkr = reg.fkrRaw * (tv * tv) * 20 / 65278
+        thd = reg.thdRaw * 50 / 65278
+        fkr = reg.fkrRaw * 20 / 65278
         reg.thd = self.limitar(self, thd, self.thdCap)
         reg.fkr = self.limitar(self, fkr, self.fkrCap)
         return reg
@@ -313,7 +313,7 @@ class Serie13(Serie):
             reg.phi3 = 0.0
 
         try:
-            fkr = ((reg.fkrRaw * header.vNom * .02) / calibr.cFkr) * (100 / reg.v1)
+            fkr = ((reg.fkrRaw * header.vNom * .02) / calibr.cFkr) * (100 / reg.v1 * tv)
         except ZeroDivisionError:
             fkr = 0.0
         reg.fkr = self.limitar(self, fkr, self.fkrCap)

@@ -9,10 +9,10 @@ from Tools import *
 
 mapaEquipos = {
                 # Monofásicas
-                0xB1: Series.Serie04,
-                0x9C: Series.Serie1F,
-                0x9B: Series.Serie0A,
-                0x21: Series.Serie15,
+                0xB1: Series.Serie04, # OK
+                0x9C: Series.Serie1F, # OK
+                0x9B: Series.Serie0A, # OK
+                0x21: Series.Serie15, # OK
 
                 # Trifasicas
                 0xDB: Series.Serie12,
@@ -87,10 +87,11 @@ class Ecamec:
                                                                          self.TV, self.TI, header)
             corte = None
             holdReg = None
+            anormalidadErr = None
 
             for registro in medicion:
                 if type(registro) == RegistroErr:
-                    errGenerator.send(registro)
+                    anormalidadErr = errGenerator.send(registro)
                     if registro.codigo == 0x82:
                         timeStampInicioCorte = registro.timeStampSegundos
                         if timeStampInicioCorte < mktime(header.timeStampStart):
@@ -106,7 +107,15 @@ class Ecamec:
                         corte.enProgreso = False
                         corte.justStarted = False
                         corte.justFinished = True
+                    elif registro.codigo == 0x85:
+                        tStampGenerator.close()
+                        header.resetInicio(registro.timeStamp)
+                        tStampGenerator = genTimeStamp(header.timeStampStart, header.periodo)
+
                 elif type(registro) == RegistroDat:
+                    if anormalidadErr:
+                        registro.anormalidad = 'A'
+                        anormalidadErr = False
                     if corte:
                         if corte.justStarted:
                             if not holdReg:
@@ -167,13 +176,26 @@ class Ecamec:
             outputFile.write(regStr)
 
     def genErr(self, fileName):
+        sinCambioDeHoraAnterior = True
+        primerCambioDeHora = True
         errName = checkFileName(fileName, '.err')
         outputFile = open(self.outputDirectory + '/' + errName, 'w', encoding='utf-8')
         while True:
             reg = (yield)
-            if type(reg) != RegistroErr: break
+            if type(reg) != RegistroErr:
+                break
+            if reg.codigo == 0x85:
+                if primerCambioDeHora:
+                    primerCambioDeHora = False
+                elif sinCambioDeHoraAnterior:
+                    reg.detalle = 'Anormalidad'
+                else:
+                    sinCambioDeHoraAnterior = True
+            elif reg.codigo == 0x83:
+                sinCambioDeHoraAnterior = False
             regStr = self.r32.tipoEquipo.errFormatString.format(reg.fecha, reg.hora, reg.detalle)
             outputFile.write(regStr)
+            yield True if reg.detalle == 'Anormalidad' else False
         outputFile.close()
 
     def extraerData(self):
@@ -218,12 +240,12 @@ class Ecamec:
                 registros.append(reg)
 
 
-# args = argParse()
+args = argParse()
 
 #TEMP
-ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Barras/'
-file = 'M2159576.R32'
-args = {'rutaProcesar':ruta+file,'outputDirectory':ruta,'TV':120,'TI':100}
+# ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/08 de Agosto/'
+# file = '080888O1.R32'
+# args = {'rutaProcesar':ruta+file,'outputDirectory':ruta,'TV':120,'TI':60}
 #TEMP
 
 ecamec = Ecamec(**args)
