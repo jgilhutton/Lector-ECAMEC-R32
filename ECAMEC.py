@@ -15,8 +15,8 @@ mapaEquipos = {
     0x21: Series.Serie15,  # OK
 
     # Trifasicas
-    0xDB: Series.Serie12,
-    0x5B: Series.Serie0C,
+    0xDB: Series.Serie12, # OK
+    0x5B: Series.Serie0C, # OK
     0x91: '\x20',
     0x01: Series.Serie13,
 
@@ -92,6 +92,7 @@ class Ecamec:
             for registro in medicion:
                 if type(registro) == RegistroErr:
                     anormalidadErr = errGenerator.send(registro)
+                    errGenerator.send(None)  # VER SI SE PUEDE MEJORAR ESTO DESPUES
                     if registro.codigo == 0x82:
                         timeStampInicioCorte = registro.timeStampSegundos
                         if timeStampInicioCorte < mktime(header.timeStampStart):
@@ -159,7 +160,7 @@ class Ecamec:
     def genDat(self, fileName):
         datName = checkFileName(fileName, '.dat')
         outputFile = open(self.outputDirectory + '/' + datName, 'w', encoding='utf-8')
-        header = (yield)
+        header = yield
         headerStr = self.r32.tipoEquipo.headerFormatString.format(header.fileName, '-',
                                                                   header.serie.decode('utf-8') if hasattr(header,
                                                                                                           'serie') else 'ND',
@@ -169,7 +170,7 @@ class Ecamec:
                                                                   header.horaInicio, header.horaFin)
         outputFile.write(headerStr)
         while True:
-            reg = (yield)
+            reg = yield
             arguments = (reg.fecha, reg.hora) + tuple((getattr(reg, x) for x in self.r32.tipoEquipo.regDatMap)) + (
                 reg.anormalidad,)
             regStr = self.r32.tipoEquipo.regFormatString % arguments
@@ -178,11 +179,12 @@ class Ecamec:
 
     def genErr(self, fileName):
         sinCambioDeHoraAnterior = True
-        primerCambioDeHora = True
+        first = True
+        primerCambioDeHora = None
         errName = checkFileName(fileName, '.err')
         outputFile = open(self.outputDirectory + '/' + errName, 'w', encoding='utf-8')
         while True:
-            reg = (yield)
+            reg = yield
             if type(reg) != RegistroErr:
                 break
             if reg.codigo == 0x85:
@@ -193,6 +195,9 @@ class Ecamec:
                 else:
                     sinCambioDeHoraAnterior = True
             elif reg.codigo == 0x83:
+                if not primerCambioDeHora and first:
+                    primerCambioDeHora = True
+                    first = False
                 sinCambioDeHoraAnterior = False
             regStr = self.r32.tipoEquipo.errFormatString.format(reg.fecha, reg.hora, reg.detalle)
             outputFile.write(regStr)
