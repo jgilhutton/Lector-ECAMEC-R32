@@ -15,8 +15,8 @@ mapaEquipos = {
     0x21: Series.Serie15,  # OK
 
     # Trifasicas
-    0xDB: Series.Serie12,
-    0x5B: Series.Serie0C,
+    0xDB: Series.Serie12, # OK
+    0x5B: Series.Serie0C, # OK
     0x91: '\x20',
     0x01: Series.Serie13,
 
@@ -249,8 +249,8 @@ class Ecamec:
 # args = argParse()
 
 # TEMP
-ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Nuevas/08 de Agosto/'
-file = '080888O1.R32'
+ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Barras/'
+file = 'M2759574.R32'
 args = {'rutaProcesar': ruta + file, 'outputDirectory': ruta, 'TV': 1, 'TI': 1}
 # TEMP
 
