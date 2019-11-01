@@ -246,13 +246,7 @@ class Ecamec:
                 registros.append(reg)
 
 
-# args = argParse()
-
-# TEMP
-ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Barras/'
-file = 'M2759574.R32'
-args = {'rutaProcesar': ruta + file, 'outputDirectory': ruta, 'TV': 1, 'TI': 1}
-# TEMP
+args = argParse()
 
 ecamec = Ecamec(**args)
 for archivo in ecamec.archivos:
