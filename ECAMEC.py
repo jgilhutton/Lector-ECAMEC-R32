@@ -9,23 +9,24 @@ from Tools import *
 
 mapaEquipos = {
     # Monofásicas
-    0xB1: Series.Serie04,  # OK
-    0x9C: Series.Serie1F,  # OK
-    0x9B: Series.Serie0A,  # OK
-    0x21: Series.Serie15,  # OK
+    0xB1: Series.Serie04,
+    0x9C: Series.Serie1F,
+    0x9B: Series.Serie0A,
+    0x21: Series.Serie15,
 
     # Trifasicas
-    0xDB: Series.Serie12, # OK
-    0x5B: Series.Serie0C, # OK
-    0x91: '\x20',
+    0xDB: Series.Serie12,
+    0x5B: Series.Serie0C,
+    0x91: Series.Serie20,
     0x01: Series.Serie13,
+    0x50: '\x1E',  # Series.Serie30,
 
     # Pendientes
     0xB3: '\x05', 0xD3: '\x06', 0xF3: '\x06',
     0xCB: '\x0D', 0xEE: '\x0B', 0x60: '\x0F', 0x61: '\x10', 0x63: '\x11', 0x65: '\x12',
     0x02: '\x14', 0x04: '\x16', 0xA0: '\x17', 0xAB: '\x18', 0xAD: '\x19', 0xFF: '\x1A',
     0x82: '\x1B', 0x05: '\x1C', 0x84: '\x1D', 0x45: '\x1E',
-    0x92: '\x21', 0x48: '\x1E', 0x49: '\x1E', 0x50: '\x1E', 0x51: '\x1E',
+    0x92: '\x21', 0x48: '\x1E', 0x49: '\x1E', 0x51: '\x1E',
     0x00: '\x00'}
 
 
@@ -48,6 +49,19 @@ class R32:
                 print(series)
             self.serie = series[0]
             self.tipoEquipo = mapaEquipos[self.serie]
+
+            self.tipoEquipo.qBytesMolestos = self.calcularCantidadDeBytesMolestos()
+            self.tipoEquipo.setRegex(self.tipoEquipo)
+
+    def calcularCantidadDeBytesMolestos(self):
+        contador = 0
+        for byte in self.rawData[::-1]:
+            if byte == 0xff:
+                break
+            else:
+                contador += 1
+        cantidad = contador % self.tipoEquipo.largoRegistro
+        return cantidad
 
 
 class Ecamec:
@@ -104,10 +118,11 @@ class Ecamec:
                         timeStampFinCorte = registro.timeStampSegundos
                         if timeStampFinCorte < mktime(header.timeStampStart):
                             timeStampFinCorte = mktime(header.timeStampStart)
-                        corte.fin = timeStampFinCorte
-                        corte.enProgreso = False
-                        corte.justStarted = False
-                        corte.justFinished = True
+                        if corte:
+                            corte.fin = timeStampFinCorte
+                            corte.enProgreso = False
+                            corte.justStarted = False
+                            corte.justFinished = True
                     elif registro.codigo == 0x85:
                         tStampGenerator.close()
                         header.resetInicio(registro.timeStamp)
@@ -162,7 +177,7 @@ class Ecamec:
         outputFile = open(self.outputDirectory + '/' + datName, 'w', encoding='utf-8')
         header = yield
         headerStr = self.r32.tipoEquipo.headerFormatString.format(header.fileName, '-',
-                                                                  header.serie.decode('utf-8') if hasattr(header,
+                                                                  header.serie.decode('latin1') if hasattr(header,
                                                                                                           'serie') else 'ND',
                                                                   header.periodo, header.unidad, header.vNom, self.TV,
                                                                   header.iNom, self.TI,
@@ -206,6 +221,7 @@ class Ecamec:
 
     def extraerData(self):
         registros = []
+        calibrFalso = None
         try:
             reverse = self.r32.tipoEquipo.reverse
         except AttributeError:
@@ -218,6 +234,10 @@ class Ecamec:
                 if reverse: data = data[::-1]
                 reg = EscalasCalibracion(unpackStr, data, mapa)
                 registros.append(reg)
+                if calibrFalso:
+                    registros[-2:] = registros[-2:][::-1]
+                    yield registros
+                    registros = []
             if chunk.header:
                 unpackStr = self.r32.tipoEquipo.unpackHeaderData
                 mapa = self.r32.tipoEquipo.headerMap
@@ -229,7 +249,18 @@ class Ecamec:
                 registros = setLast(registros)
                 yield registros
                 registros = []
-            elif chunk.err:
+            if hasattr(chunk, 'headerOk') and chunk.headerOk:
+                unpackStr = self.r32.tipoEquipo.unpackHeaderData
+                mapa = self.r32.tipoEquipo.headerMap
+                data = chunk.headerOk
+                if reverse: data = data[::-1]
+                reg = Header(unpackStr, data, mapa)
+                reg.setData()
+                registros.append(reg)
+                registros = setLast(registros)
+                calibrFalso = True
+                continue
+            elif chunk.err and not calibrFalso:
                 unpackStr = self.r32.tipoEquipo.unpackErr
                 mapa = self.r32.tipoEquipo.errMap
                 data = chunk.err

@@ -64,6 +64,7 @@ def genTimeStamp(startTime, periodo):
 
 def feeder(regex, data, reverse=False):
     if reverse: data = data[::-1]
+    regex = bytes(regex, encoding='latin1')
     for match in finditer(regex, data):
         yield SimpleNamespace(**match.groupdict())
 
