@@ -4,21 +4,26 @@ from re import findall
 
 # Custom
 import Series
+from Serie15 import Serie15
+from Serie1F import Serie1F
+from Serie0A import Serie0A
+from Serie04 import Serie04
+# from Serie20 import Serie20
 from Registros import *
 from Tools import *
 
 mapaEquipos = {
     # Monofásicas
-    0xB1: Series.Serie04,
-    0x9C: Series.Serie1F,
-    0x9B: Series.Serie0A,
-    0x21: Series.Serie15,
+    0xB1: Serie04,  # OK
+    0x9C: Serie1F,  # OK
+    0x9B: Serie0A,  # OK
+    0x21: Serie15,  # OK
 
     # Trifasicas
-    0xDB: Series.Serie12,
-    0x5B: Series.Serie0C,
-    0x91: Series.Serie20,
-    0x01: Series.Serie13,
+    0xDB: 'Series.Serie12',
+    0x5B: 'Series.Serie0C',
+    0x91:  'Serie20',
+    0x01: 'Series.Serie13',
     0x50: '\x1E',  # Series.Serie30,
 
     # Pendientes
@@ -38,20 +43,13 @@ class R32:
         with open(pathToFile, 'rb') as f:
             self.rawData = f.read()
 
-        headers = findall(b'(?<=\xff)[^\xff]{36}(?=\xff)', self.rawData)
-        if not headers:
-            # Try 1612
-            self.tipoEquipo = None
-        else:
-            series = [x[8] for x in headers]
-            if len(set(series)) > 1:
-                print('multiples series detectadas')
-                print(series)
-            self.serie = series[0]
-            self.tipoEquipo = mapaEquipos[self.serie]
-
+        self.serie,Serie = self.getSerie()
+        if type(Serie) is not str:
+            self.tipoEquipo = Serie()
+            self.tipoEquipo.setVariante(self.rawData)
             self.tipoEquipo.qBytesMolestos = self.calcularCantidadDeBytesMolestos()
-            self.tipoEquipo.setRegex(self.tipoEquipo)
+        else:
+            self.tipoEquipo = None
 
     def calcularCantidadDeBytesMolestos(self):
         contador = 0
@@ -63,6 +61,18 @@ class R32:
         cantidad = contador % self.tipoEquipo.largoRegistro
         return cantidad
 
+    def getSerie(self):
+        headers = findall(b'(?<=\xff)[^\xff]{36}(?=\xff)', self.rawData)
+        if not headers:
+            # Try 1612
+            return 0x50,''
+        else:
+            serie = tuple(set([x[8] for x in headers]))
+            if len(serie) > 1:
+                print('multiples series detectadas')
+                print(serie)
+                return 0x50,''
+            return serie[0],mapaEquipos[serie[0]]
 
 class Ecamec:
     def __init__(self, **kwargs):
@@ -97,7 +107,7 @@ class Ecamec:
             errGenerator.send(None)
             datGenerator.send(header)
             tStampGenerator = genTimeStamp(header.timeStampStart, header.periodo)
-            procesar = lambda r: self.r32.tipoEquipo.analizarRegistroDat(self.r32.tipoEquipo, r, calibraciones,
+            procesar = lambda r: self.r32.tipoEquipo.analizarRegistroDat(r, calibraciones,
                                                                          self.TV, self.TI, header)
             corte = None
             holdReg = None
@@ -205,6 +215,7 @@ class Ecamec:
             if reg.codigo == 0x85:
                 if primerCambioDeHora:
                     primerCambioDeHora = False
+                    sinCambioDeHoraAnterior = True
                 elif sinCambioDeHoraAnterior:
                     reg.detalle = 'Anormalidad'
                 else:
@@ -226,6 +237,7 @@ class Ecamec:
             reverse = self.r32.tipoEquipo.reverse
         except AttributeError:
             return
+
         for chunk in feeder(self.r32.tipoEquipo.regex, self.r32.rawData, reverse=reverse):
             if chunk.calibr:
                 unpackStr = self.r32.tipoEquipo.unpackHeaderCalibracion
@@ -276,9 +288,14 @@ class Ecamec:
                 reg = RegistroDat(unpackStr, data, mapa)
                 registros.append(reg)
 
-
 args = argParse()
-
+# ruta = './Extras/Barras/M05591714.R32'
+# file = '071229R1.R32'
+# args = {'rutaProcesar': ruta+file, 'outputDirectory': ruta, 'TV': 1, 'TI': 1,
+#                 'verboseLevel': 0}
+# args = {'rutaProcesar': ruta, 'outputDirectory': './Extras/Barras/', 'TV': 1, 'TI': 1,
+#                 'verboseLevel': 0}
 ecamec = Ecamec(**args)
 for archivo in ecamec.archivos:
+    print(archivo)
     ecamec.procesarR32(archivo)

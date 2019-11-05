@@ -44,7 +44,7 @@ class Header(Registro):
             self.unidad = 'min'
 
         self.timeStampStart = strptime(
-            ','.join((str(x) for x in (self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt))),
+            ','.join((str(x).zfill(2) for x in (self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt))),
             '%d,%m,%y,%H,%M')
         self.timeStampEnd = strptime(
             ','.join((str(x) for x in (self.dEnd, self.mEnd, self.yEnd, self.hEnd, self.minEnd))), '%d,%m,%y,%H,%M')
@@ -63,7 +63,7 @@ class Header(Registro):
 
 class RegistroErr(Registro):
     def setData(self):
-        self.d, self.m, self.y, self.H, self.M, self.S = map(convert, (self.d, self.m, self.y, self.H, self.M, self.S))
+        self.d, self.m, self.y, self.H, self.M, self.S = map(convert, (self.d, self.m, (self.y,'año'), self.H, (self.M,'min'), self.S))
         self.timeStamp = strptime(','.join((str(x) for x in (self.d, self.m, self.y, self.H, self.M, self.S))),
                                   '%d,%m,%y,%H,%M,%S')
         self.timeStampSegundos = mktime(self.timeStamp)
@@ -73,7 +73,8 @@ class RegistroErr(Registro):
 
 
 class EscalasCalibracion(Registro):
-    pass
+    def setRegSize(self):
+        self.regSize = regSizes[self.regSize]
 
 
 class RegistroDat(Registro):

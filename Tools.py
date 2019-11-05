@@ -69,6 +69,15 @@ def feeder(regex, data, reverse=False):
         yield SimpleNamespace(**match.groupdict())
 
 
+def limitar(value, minimo, maximo):
+    if minimo <= value <= maximo:
+        return value
+    elif value < minimo:
+        return minimo
+    else:
+        return maximo
+
+
 def inRange(value, boundaries):
     return boundaries[0] < value < boundaries[1]
 
@@ -87,10 +96,21 @@ def checkFileName(fileName, ext):
 
 
 def convert(valor):
+    if type(valor) is tuple:
+        valor,tipo = valor
+    else:
+        tipo = 'default'
     try:
         valorConvertido = int(str(hex(valor))[2:])
     except ValueError:
-        valorConvertido = int(hex(valor), 16)
+        if tipo == 'año':
+            mapa = {'c':20,'d':30}
+            valor = str(hex(valor))
+            valor = mapa[valor[2]]+int(valor[3],16)
+        elif tipo == 'min':
+            valor = str(hex(valor))
+            valor = int(valor[2])*10 + int(valor[3], 16)
+        valorConvertido = int(str(hex(valor))[2:],16)
     return valorConvertido
 
 
