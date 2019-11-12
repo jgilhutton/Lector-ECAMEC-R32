@@ -1,26 +1,26 @@
 # BuiltIns
 from time import strftime, strptime, mktime
-from struct import unpack
+from struct import unpack, pack
 
 # Custom
-from Tools import convert
+from Tools import convert, checkReg
 
 errCodes = {0x84: 'Descarga de datos',
             0x83: 'Cambio de Hora (Hora Anterior)',
             0x85: 'Cambio de Hora (Hora Actual)',
             0x82: 'Corte de Tensión',
-            0x81: 'Vuelta de Tensión',}
+            0x81: 'Vuelta de Tensión', }
 iNominales = {0x30: 5, 0x31: 200, 0x32: 2, 0x33: 35, 0x34: 500, 0x35: 70, 0x36: 800, 0x37: 1500,
-              0x38: 300, 0x39: 100,}
+              0x38: 300, 0x39: 100, }
 vNominales = {0x30: 110, 0x31: 220, 0x32: 600, 0x33: 7620, 0x34: 19050}
 mapaPeriodos = {16: 1, 17: 5, 18: 15, 19: 30}
 
 
 class Registro:
     def __init__(self, unpackStr, regRaw, regMap):
-        self.regRaw = regRaw
+        self.regRaw = checkReg(regRaw)
         self.unpackStr = unpackStr
-        dataRaw = unpack(unpackStr, regRaw)
+        dataRaw = unpack(unpackStr, self.regRaw)
         for id, attr in enumerate(regMap, start=0):
             setattr(self, attr, dataRaw[id])
 
@@ -33,9 +33,9 @@ class Header(Registro):
             pass
 
         self.periodo, self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt, self.dEnd, self.mEnd, self.yEnd, self.hEnd, self.minEnd = (
-            int(x.decode('utf-8')) for x in (
-            self.periodo, self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt, self.dEnd, self.mEnd, self.yEnd,
-            self.hEnd, self.minEnd))
+            int(x.decode('utf-8')) for x in
+        (self.periodo, self.dStrt, self.mStrt, self.yStrt, self.hStrt, self.minStrt, self.dEnd, self.mEnd, self.yEnd,
+         self.hEnd, self.minEnd))
 
         if self.periodo in mapaPeriodos:
             self.periodo = int(mapaPeriodos[self.periodo] / 60)
@@ -63,7 +63,8 @@ class Header(Registro):
 
 class RegistroErr(Registro):
     def setData(self):
-        self.d, self.m, self.y, self.H, self.M, self.S = map(convert, (self.d, self.m, (self.y,'año'), self.H, (self.M,'min'), self.S))
+        self.d, self.m, self.y, self.H, self.M, self.S = map(convert, (
+        self.d, self.m, (self.y, 'año'), self.H, (self.M, 'min'), (self.S, 'seg')))
         self.timeStamp = strptime(','.join((str(x) for x in (self.d, self.m, self.y, self.H, self.M, self.S))),
                                   '%d,%m,%y,%H,%M,%S')
         self.timeStampSegundos = mktime(self.timeStamp)

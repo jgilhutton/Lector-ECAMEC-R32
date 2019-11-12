@@ -48,20 +48,9 @@ class R32:
         self.serie, Serie = self.getSerie()
         if type(Serie) is not str:
             self.tipoEquipo = Serie()
-            self.tipoEquipo.qBytesMolestos = self.calcularCantidadDeBytesMolestos()
             self.tipoEquipo.setVariante(self.rawData)
         else:
             self.tipoEquipo = None
-
-    def calcularCantidadDeBytesMolestos(self):
-        contador = 0
-        for byte in self.rawData[::-1]:
-            if byte == 0xff:
-                break
-            else:
-                contador += 1
-        cantidad = contador % self.tipoEquipo.largoRegistro
-        return cantidad
 
     def getSerie(self):
         headers = findall(b'(?<=\xff)[^\xff]{36}(?=\xff)', self.rawData)
@@ -308,8 +297,8 @@ class Ecamec:
 
 if __name__ == '__main__':
     # args = argParse()
-    ruta = './Extras/Barras/'
-    file = 'M34591234.R32'
+    ruta = 'C:/Users/Ricardo/Desktop/Infosec/Lector ECAMEC/Extras/Mediciones Problematicas/'
+    file = '092099O1.R32'
     args = {'rutaProcesar': ruta + file, 'outputDirectory': ruta, 'TV': 1, 'TI': 1,
             'verboseLevel': 0}
     ecamec = Ecamec(**args)

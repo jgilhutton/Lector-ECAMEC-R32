@@ -1,4 +1,4 @@
-from Tools import limitar
+from Tools import limitar,calcularCantidadDeBytesMolestos
 from re import search
 
 
@@ -43,6 +43,7 @@ class Serie20:
         self.regex = self.regex % formatTuple
 
     def setVariante(self, rawData):
+        self.qBytesMolestos = calcularCantidadDeBytesMolestos(self)
         initRe = '(?P<headerOk>(?<=ÿ)[^ÿ]{36})(?P<calibrFalso>[^ÿ]{21}(?=ÿ))'
         testRe = search(bytes(initRe, encoding='latin1'), rawData)
         if testRe:

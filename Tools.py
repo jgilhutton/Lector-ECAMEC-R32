@@ -3,7 +3,7 @@ from re import finditer
 from os.path import isfile, isdir
 from types import SimpleNamespace
 from sys import argv
-
+from struct import pack
 
 def printHelp(*args):
     help = """
@@ -80,6 +80,16 @@ def limitar(value, minimo, maximo):
     else:
         return maximo
 
+def calcularCantidadDeBytesMolestos(Serie):
+    contador = 0
+    for byte in Serie.rawData[::-1]:
+        if byte == 0xff:
+            break
+        else:
+            contador += 1
+    cantidad = contador % Serie.tipoEquipo.largoRegistro
+    return cantidad
+
 
 def inRange(value, boundaries):
     return boundaries[0] < value < boundaries[1]
@@ -97,6 +107,13 @@ def checkFileName(fileName, ext):
         break
     return fileName + ext % c
 
+def checkReg(regRaw):
+    header = bytearray(regRaw)
+    for index,b in enumerate(header[9:],start=9):
+        if b%16 > 10:
+            b = b//16*16
+            header[index] = b
+    return bytes(header)
 
 def convert(valor):
     if type(valor) is tuple:
@@ -113,6 +130,11 @@ def convert(valor):
         elif tipo == 'min':
             valor = str(hex(valor))
             valor = int(valor[2])*10 + int(valor[3], 16)
+        elif tipo == 'seg':
+            min,seg = divmod(valor,60)
+            valor = seg
+        else:
+            raise Exception('No se pudo convertir el byte')
         valorConvertido = int(str(hex(valor))[2:],16)
     return valorConvertido
 
