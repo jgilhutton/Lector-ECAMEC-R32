@@ -32,6 +32,7 @@ Las series corresponden al noveno (9°) byte del header de cada medición. Gener
         -v  Muestra más información en la pantalla durante el
             procesamiento.
         -vv Muestra aun más información
+        -h  Muestra este mensaje
 
     Ejemplos:
     python ECAMEC.py -i "C:\Mediciones" -o "C:\Mediciones Procesadas"
