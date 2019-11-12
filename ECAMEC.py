@@ -12,6 +12,7 @@ from Serie0A import Serie0A
 from Serie04 import Serie04
 # Trif
 from Serie20 import Serie20
+from Serie13 import Serie13
 
 mapaEquipos = {
     # Monofásicas
@@ -24,7 +25,7 @@ mapaEquipos = {
     0xDB: 'Serie12',
     0x5B: 'Serie0C',
     0x91: Serie20,
-    0x01: 'Serie13',
+    0x01: Serie13,
     0x50: '\x1E',  # Serie30,
 
     # Pendientes
@@ -306,11 +307,11 @@ class Ecamec:
 
 
 if __name__ == '__main__':
-    args = argParse()
-    # ruta = './Extras/Barras/'
-    # file = 'M08591741.R32'
-    # args = {'rutaProcesar': ruta + file, 'outputDirectory': ruta, 'TV': 1, 'TI': 1,
-    #         'verboseLevel': 0}
+    # args = argParse()
+    ruta = './Extras/Barras/'
+    file = 'M34591234.R32'
+    args = {'rutaProcesar': ruta + file, 'outputDirectory': ruta, 'TV': 1, 'TI': 1,
+            'verboseLevel': 0}
     ecamec = Ecamec(**args)
     for archivo in ecamec.archivos:
         print(archivo)
