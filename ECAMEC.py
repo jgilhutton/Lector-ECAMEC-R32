@@ -3,14 +3,15 @@ from os import walk
 from re import findall
 
 # Custom
-import Series
+from Registros import *
+from Tools import *
+# Monof
 from Serie15 import Serie15
 from Serie1F import Serie1F
 from Serie0A import Serie0A
 from Serie04 import Serie04
-# from Serie20 import Serie20
-from Registros import *
-from Tools import *
+# Trif
+from Serie20 import Serie20
 
 mapaEquipos = {
     # Monofásicas
@@ -20,11 +21,11 @@ mapaEquipos = {
     0x21: Serie15,  # OK
 
     # Trifasicas
-    0xDB: 'Series.Serie12',
-    0x5B: 'Series.Serie0C',
-    0x91:  'Serie20',
-    0x01: 'Series.Serie13',
-    0x50: '\x1E',  # Series.Serie30,
+    0xDB: 'Serie12',
+    0x5B: 'Serie0C',
+    0x91: Serie20,
+    0x01: 'Serie13',
+    0x50: '\x1E',  # Serie30,
 
     # Pendientes
     0xB3: '\x05', 0xD3: '\x06', 0xF3: '\x06',
@@ -43,11 +44,11 @@ class R32:
         with open(pathToFile, 'rb') as f:
             self.rawData = f.read()
 
-        self.serie,Serie = self.getSerie()
+        self.serie, Serie = self.getSerie()
         if type(Serie) is not str:
             self.tipoEquipo = Serie()
-            self.tipoEquipo.setVariante(self.rawData)
             self.tipoEquipo.qBytesMolestos = self.calcularCantidadDeBytesMolestos()
+            self.tipoEquipo.setVariante(self.rawData)
         else:
             self.tipoEquipo = None
 
@@ -65,14 +66,15 @@ class R32:
         headers = findall(b'(?<=\xff)[^\xff]{36}(?=\xff)', self.rawData)
         if not headers:
             # Try 1612
-            return 0x50,''
+            return 0x50, ''
         else:
             serie = tuple(set([x[8] for x in headers]))
             if len(serie) > 1:
                 print('multiples series detectadas')
                 print(serie)
-                return 0x50,''
-            return serie[0],mapaEquipos[serie[0]]
+                return 0x50, ''
+            return serie[0], mapaEquipos[serie[0]]
+
 
 class Ecamec:
     def __init__(self, **kwargs):
@@ -116,7 +118,7 @@ class Ecamec:
             for registro in medicion:
                 if type(registro) == RegistroErr:
                     anormalidadErr = errGenerator.send(registro)
-                    errGenerator.send(None)  # VER SI SE PUEDE MEJORAR ESTO DESPUES
+                    errGenerator.send(None)
                     if registro.codigo == 0x82:
                         timeStampInicioCorte = registro.timeStampSegundos
                         if timeStampInicioCorte < mktime(header.timeStampStart):
@@ -184,13 +186,15 @@ class Ecamec:
 
     def genDat(self, fileName):
         datName = checkFileName(fileName, '.dat')
-        outputFile = open(self.outputDirectory + '/' + datName, 'w', encoding='utf-8')
+        outputFile = open(self.outputDirectory + '/' + datName, 'w', encoding='latin1')
         header = yield
         headerStr = self.r32.tipoEquipo.headerFormatString.format(header.fileName, '-',
                                                                   header.serie.decode('latin1') if hasattr(header,
-                                                                                                          'serie') else 'ND',
-                                                                  header.periodo, header.unidad, header.vNom, self.TV,
-                                                                  header.iNom, self.TI,
+                                                                                                           'serie') else 'ND',
+                                                                  header.periodo, header.unidad, header.vNom,
+                                                                  '{0:.2f}'.format(float(self.TV)).replace('.', ','),
+                                                                  header.iNom,
+                                                                  '{0:.2f}'.format(float(self.TI)).replace('.', ','),
                                                                   header.fechaInicio, header.fechaFin,
                                                                   header.horaInicio, header.horaFin)
         outputFile.write(headerStr)
@@ -207,7 +211,7 @@ class Ecamec:
         first = True
         primerCambioDeHora = None
         errName = checkFileName(fileName, '.err')
-        outputFile = open(self.outputDirectory + '/' + errName, 'w', encoding='utf-8')
+        outputFile = open(self.outputDirectory + '/' + errName, 'w', encoding='latin1')
         while True:
             reg = yield
             if type(reg) != RegistroErr:
@@ -231,6 +235,8 @@ class Ecamec:
         outputFile.close()
 
     def extraerData(self):
+        calibre = None
+        header = None
         registros = []
         calibrFalso = None
         try:
@@ -243,36 +249,46 @@ class Ecamec:
                 unpackStr = self.r32.tipoEquipo.unpackHeaderCalibracion
                 mapa = self.r32.tipoEquipo.calibrMap
                 data = chunk.calibr
-                if reverse: data = data[::-1]
+                if reverse:
+                    data = data[::-1]
                 reg = EscalasCalibracion(unpackStr, data, mapa)
-                registros.append(reg)
+                calibre = reg
                 if calibrFalso:
-                    registros[-2:] = registros[-2:][::-1]
+                    registros.append(calibre)
+                    registros.append(header)
                     yield registros
                     registros = []
-            if chunk.header:
+                    calibre = None
+                    header = None
+                    continue
+            if hasattr(chunk, 'header') and chunk.header:
                 unpackStr = self.r32.tipoEquipo.unpackHeaderData
                 mapa = self.r32.tipoEquipo.headerMap
                 data = chunk.header
                 if reverse: data = data[::-1]
                 reg = Header(unpackStr, data, mapa)
+                header = reg
                 reg.setData()
-                registros.append(reg)
+                registros.append(calibre)
+                registros.append(header)
                 registros = setLast(registros)
                 yield registros
                 registros = []
+                calibre = None
+                header = None
             if hasattr(chunk, 'headerOk') and chunk.headerOk:
                 unpackStr = self.r32.tipoEquipo.unpackHeaderData
                 mapa = self.r32.tipoEquipo.headerMap
                 data = chunk.headerOk
                 if reverse: data = data[::-1]
                 reg = Header(unpackStr, data, mapa)
+                header = reg
                 reg.setData()
                 registros.append(reg)
                 registros = setLast(registros)
                 calibrFalso = True
                 continue
-            elif chunk.err and not calibrFalso:
+            elif chunk.err:  # and not calibrFalso:
                 unpackStr = self.r32.tipoEquipo.unpackErr
                 mapa = self.r32.tipoEquipo.errMap
                 data = chunk.err
@@ -288,14 +304,14 @@ class Ecamec:
                 reg = RegistroDat(unpackStr, data, mapa)
                 registros.append(reg)
 
-args = argParse()
-# ruta = './Extras/Barras/M05591714.R32'
-# file = '071229R1.R32'
-# args = {'rutaProcesar': ruta+file, 'outputDirectory': ruta, 'TV': 1, 'TI': 1,
-#                 'verboseLevel': 0}
-# args = {'rutaProcesar': ruta, 'outputDirectory': './Extras/Barras/', 'TV': 1, 'TI': 1,
-#                 'verboseLevel': 0}
-ecamec = Ecamec(**args)
-for archivo in ecamec.archivos:
-    print(archivo)
-    ecamec.procesarR32(archivo)
+
+if __name__ == '__main__':
+    args = argParse()
+    # ruta = './Extras/Barras/'
+    # file = 'M08591741.R32'
+    # args = {'rutaProcesar': ruta + file, 'outputDirectory': ruta, 'TV': 1, 'TI': 1,
+    #         'verboseLevel': 0}
+    ecamec = Ecamec(**args)
+    for archivo in ecamec.archivos:
+        print(archivo)
+        ecamec.procesarR32(archivo)

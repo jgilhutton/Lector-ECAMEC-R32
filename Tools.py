@@ -16,6 +16,7 @@ def printHelp(*args):
         -v  Muestra más información en la pantalla durante el
             procesamiento.
         -vv Muestra aun más información
+        -h  Muestra este mensaje
 
     Ejemplos:
     python ECAMEC.py -i "C:\Mediciones" -o "C:\Mediciones Procesadas"
@@ -31,6 +32,8 @@ def argParse():
     if len(argv) == 1:
         printHelp('Debe proporcionar los argumentos necesarios.')
     else:
+        if '-h' in argv:
+            printHelp()
         rutaProcesar = argv[argv.index('-i') + 1] if '-i' in argv else './'
         if not (isfile(rutaProcesar) or isdir(rutaProcesar)):
             printHelp('No se encontró el directorio o archivo ingresado.')
