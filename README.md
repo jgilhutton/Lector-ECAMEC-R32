@@ -3,10 +3,6 @@ Este es un trabajo de ingeniería inversa a los archivos R32 que generan los reg
 
 En el laburo, tenemos que analizar toneladas de archivos R32, de equipos de 4 series distintas, que generan mal los archivos, con factores de tension y corrientes diferentes.
 
-ECAMEC no nos dio ninguna solución para esto, por lo que nos vemos obligados a procesar uno por uno. Insoportable.
-
-Esta herramienta está destinada a terminar con nuestro sufrimiento y el de los demás.
-
 # Este programa, al día de la fecha, puede leer las series:
 
 - 0xB1 _(Monofásica)_
